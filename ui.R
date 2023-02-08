@@ -20,8 +20,16 @@ ui <-
       # inverse = TRUE,
       theme = bs_theme(version = 4, bootswatch ="cosmo"),
       
-      # Loading the ui for rank aggregation part
-      source('R/ui/RobustHitsUI.R', local = TRUE)$value
+      # Loading the ui for rank aggregation tab
+      source('R/ui/RankAggregationUI.R', local = TRUE)$value,
       
+      # Loading the ui for rank uniqueness tab
+      source('R/ui/RankUniquenessUI.R', local = TRUE)$value,
+      
+      # Loading the ui for tutorials tab
+      source('R/ui/TutorialsUI.R', local = TRUE)$value,
+      
+      # Loading the ui for more information tab
+      source('R/ui/AboutUsUI.R', local = TRUE)$value
     )
   )

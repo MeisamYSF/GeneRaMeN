@@ -1,0 +1,11 @@
+name: Dev-Meisam
+title:
+username:
+account: ysolab
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 8241844
+bundleId:
+url: https://ysolab.shinyapps.io/Dev-Meisam/
+when: 1675747948.41542
+lastSyncTime: 1675747948.41552

@@ -1,3 +1,7 @@
+################################################################################
+################### Gene-RaMeN ui for rank aggregation tab #####################
+################################################################################
+
 tabPanel("Rank aggregation",
          sidebarLayout(
            
@@ -7,7 +11,8 @@ tabPanel("Rank aggregation",
                           width = '100%',
                           choices = c("None" = "None",
                                       "SARS-CoV-2 screens" = "SARS2",
-                                      "Flavivirus screens" = "Flavi"),
+                                      "Flavivirus screens" = "Flavi",
+                                      "Picornavirus screens" = "Picorna"),
                           selected = "None"),
              
              helpText(
@@ -54,15 +59,15 @@ tabPanel("Rank aggregation",
                         sliderInput("nScPlotTop", "Number of top hits to be highlighted:",
                                     min = 1, max = 100, value = 20),
                         hr(),
-                        plotOutput("scatterPlot", width = "100%", height = "600px") %>% withSpinner(type = getOption("spinner.type", default = 4)),
+                        plotOutput("scatterPlot", width = "100%", height = "700px") %>% withSpinner(type = getOption("spinner.type", default = 4)),
                         br(),
                         hr(),
-                        fluidRow(column(3, numericInput("w", label = "Width", value = 9)),
-                                 column(3, numericInput("h", label = "Height", value = 6)),
-                                 column(3, numericInput("ppi", label = "Resolution", value = 100)),
+                        fluidRow(column(3, numericInput("wScatter", label = "Width", value = 10)),
+                                 column(3, numericInput("hScatter", label = "Height", value = 10)),
+                                 column(3, numericInput("ppiScatter", label = "Resolution", value = 300)),
                                  column(3, dropdown(
                                    downloadBttn(
-                                     outputId = "downloadPlotPDF",
+                                     outputId = "scPlotPDF",
                                      label="PDF",
                                      color = "default",
                                      style = "fill",
@@ -70,7 +75,7 @@ tabPanel("Rank aggregation",
                                      block=TRUE
                                    ),
                                    downloadBttn(
-                                     outputId = "downloadPlotPNG",
+                                     outputId = "scPlotPNG",
                                      label="PNG",
                                      color = "default",
                                      style = "fill",
@@ -78,15 +83,7 @@ tabPanel("Rank aggregation",
                                      block=TRUE
                                    ),
                                    downloadBttn(
-                                     outputId = "downloadPlotJPEG",
-                                     label="JPEG",
-                                     color = "default",
-                                     style = "fill",
-                                     size='sm',
-                                     block=TRUE
-                                   ),
-                                   downloadBttn(
-                                     outputId = "downloadPlotTIFF",
+                                     outputId = "scPlotTIFF",
                                      label="TIFF",
                                      color = "default",
                                      style = "fill",
@@ -112,9 +109,9 @@ tabPanel("Rank aggregation",
                         uiOutput("heatmapUI"),
                         br(),
                         hr(),
-                        fluidRow(column(3, numericInput("wHeatmap", label = "Width", value = 9)),
-                                 column(3, numericInput("hHeatmap", label = "Height", value = 6)),
-                                 column(3, numericInput("ppiHeatmap", label = "Resolution", value = 100)),
+                        fluidRow(column(3, numericInput("wHeatmap", label = "Width", value = 10)),
+                                 column(3, numericInput("hHeatmap", label = "Height", value = 10)),
+                                 column(3, numericInput("ppiHeatmap", label = "Resolution", value = 300)),
                                  column(3, dropdown(
                                    downloadBttn(
                                      outputId = "heatmapPDF",
@@ -127,14 +124,6 @@ tabPanel("Rank aggregation",
                                    downloadBttn(
                                      outputId = "heatmapPNG",
                                      label="PNG",
-                                     color = "default",
-                                     style = "fill",
-                                     size='sm',
-                                     block=TRUE
-                                   ),
-                                   downloadBttn(
-                                     outputId = "heatmapJPEG",
-                                     label="JPEG",
                                      color = "default",
                                      style = "fill",
                                      size='sm',
@@ -154,7 +143,73 @@ tabPanel("Rank aggregation",
                                  )
                                  )
                         )
-               )
+               ),
+               
+               tabPanel("Pathway enrichment",
+                        
+                        fluidRow(column(3, sliderInput("nEnrich", "Number of top hits for over-representation analysis:",
+                                                       min = 1, max = 1000, value = 100)),
+                                 column(3, selectInput("enrichDB", label = "Query database:", 
+                                                       choices = list("KEGG pathway enrichment" = 'KEGG',
+                                                                      # "Reactome pathway enrichment" = "REAC",
+                                                                      "GO - Biological Process" = 'GO:BP',
+                                                                      "GO - Molecular Function" = 'GO:MF',
+                                                                      "GO - Cellular Component"= 'GO:CC'), 
+                                                       selected = "KEGG")),
+                                 column(3, numericInput("pvalEnrich", label = "Adjusted p-value cutoff:", value = 0.05)),
+                                 column(3, actionButton("submitEnrich", "Submit!", class = "btn-success"))
+                                 ),
+                        
+                        helpText(
+                          p("All gene set over-representation analysis are powered by", a("g:Profiler", href = "https://doi.org/10.1093/nar/gkz369"), "server.")
+                        ),
+                        
+                        hr(),
+                        
+                        uiOutput("enrichUI") %>% withSpinner(type = getOption("spinner.type", default = 4))
+                        
+                        ### The commented chunk below was substituted with the enrichUI object above:
+                        
+                        # p(class = 'text-center', downloadButton('downloadEnrich', 'Download table!')),
+                        # DT::DTOutput("enrichTable", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4)),
+                        # br(),
+                        # hr(),
+                        # plotOutput("enrichPlot", width = "100%", height = "600px") %>% withSpinner(type = getOption("spinner.type", default = 4)),
+                        # fluidRow(column(3, numericInput("wEnrich", label = "Width", value = 10)),
+                        #          column(3, numericInput("hEnrich", label = "Height", value = 10)),
+                        #          column(3, numericInput("ppiEnrich", label = "Resolution", value = 300)),
+                        #          column(3, dropdown(
+                        #            downloadBttn(
+                        #              outputId = "enrichPDF",
+                        #              label="PDF",
+                        #              color = "default",
+                        #              style = "fill",
+                        #              size='sm',
+                        #              block=TRUE
+                        #            ),
+                        #            downloadBttn(
+                        #              outputId = "enrichPNG",
+                        #              label="PNG",
+                        #              color = "default",
+                        #              style = "fill",
+                        #              size='sm',
+                        #              block=TRUE
+                        #            ),
+                        #            downloadBttn(
+                        #              outputId = "enrichTIFF",
+                        #              label="TIFF",
+                        #              color = "default",
+                        #              style = "fill",
+                        #              size='sm',
+                        #              block=TRUE
+                        #            ),
+                        #            circle=FALSE,
+                        #            label="Download plot",
+                        #            status="default"
+                        #          )
+                        #          )
+                        # )
+               ),
              )
            )
            
