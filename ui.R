@@ -12,7 +12,7 @@ ui <-
       #                  width = 20,
       #                  style = "margin:5px 5px"
       #                ),
-      #                "Gene-RaMeN \u03b1 v0.5.0"
+      #                "Gene-RaMeN \u03b1 v0.5.1"
       #              )
       # ),
       strong("Gene-RaMeN \u03b1 v0.5.0"),
