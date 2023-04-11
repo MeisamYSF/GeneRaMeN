@@ -44,22 +44,24 @@ tabPanel("Rank uniqueness",
                tabPanel("Unique Ranks",
                         
                         fluidRow(
-                          column(width = 6, p(class = 'text-center', downloadButton('downloadTableUp', 'Download table!'))),
-                          column(width = 6, p(class = 'text-center', downloadButton('downloadTableDown', 'Download table!')))
+                          column(width = 12, p(class = 'text-center', downloadButton('downloadTable', 'Download table!'))),
+                          # column(width = 6, p(class = 'text-center', downloadButton('downloadTableDown', 'Download table!')))
                         ),
                         fluidRow(
-                          column(width = 6, DT::DTOutput("tableHeteroUp", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
-                          column(width = 6, DT::DTOutput("tableHeteroDown", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4)))
+                          column(width = 12, DT::DTOutput("tableHetero", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
+                          # column(width = 6, DT::DTOutput("tableHeteroDown", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4)))
                         )
                ),
                
                tabPanel("Heatmap",
-                        sliderInput("nHeatmapHeteroUp", "Number of the unique ranks to be visualized for 1st group:",
-                                    min = 0, max = 20, value = 5
-                        ),
-                        sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
-                                    min = 0, max = 20, value = 5
-                        ),
+                        fluidRow(column(4, sliderInput("nHeatmapHetero", "Number of the unique ranks to be visualized for 1st group:",
+                                                       min = 0, max = 50, value = 20)),
+                                 column(4, checkboxInput("clustHeatmap", label = "Clustering the studies", value = FALSE)),
+                                 column(4, checkboxInput("dispNumHeatmap ", label = "Display the ranks", value = TRUE))),
+                        
+                        # sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
+                        #             min = 0, max = 20, value = 5
+                        # ),
                         hr(),
                         uiOutput("heatmapHeteroUI"),
                         br(),

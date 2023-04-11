@@ -101,7 +101,7 @@ tabPanel("Rank aggregation",
                tabPanel("Gene rank finder", DT::DTOutput("rankFinder", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
                
                tabPanel("Heatmap",
-                        sliderInput("nHeatmap", "Number of the top hits are to be visualized:",
+                        sliderInput("nHeatmap", "Number of the top hits:",
                                     min = 1, max = 100, value = 50
                         ),
                         hr(),
@@ -147,8 +147,7 @@ tabPanel("Rank aggregation",
                
                tabPanel("Pathway enrichment",
                         
-                        fluidRow(column(3, sliderInput("nEnrich", "Number of top hits for over-representation analysis:",
-                                                       min = 1, max = 1000, value = 100)),
+                        fluidRow(column(3, numericInput("nEnrich", label = "Number of top hits:", value = 100)),
                                  column(3, selectInput("enrichDB", label = "Query database:", 
                                                        choices = list("KEGG pathway enrichment" = 'KEGG',
                                                                       # "Reactome pathway enrichment" = "REAC",

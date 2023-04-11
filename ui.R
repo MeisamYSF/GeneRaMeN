@@ -15,7 +15,7 @@ ui <-
       #                "Gene-RaMeN \u03b1 v0.5.1"
       #              )
       # ),
-      strong("Gene-RaMeN \u03b1 v0.5.0"),
+      strong("Gene-RaMeN \u03b1 v0.5.1"),
       # id = "navbar",
       # inverse = TRUE,
       theme = bs_theme(version = 4, bootswatch ="cosmo"),

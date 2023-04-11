@@ -62,7 +62,6 @@ output$contrastPanel <- renderUI({
   validate(need(length(screenList) != 0, "Waiting to choose a dataset ..."))
   
   fluidPage(
-    hr(),
     br(),
     numericInput(inputId = "nTopHetero",
                  label = strong("Specify the number of top-hits to be considered from each ranked list:"),
@@ -112,39 +111,67 @@ groupHet <- reactive({
 rankProdReact <- eventReactive(input$submitHetero, {
   
   screenList <- metaScreenHetero()
+  screenClass <- groupHet()
   
+  # To add the gene rankings to gene names as a new variable
   for(i in 1:length(screenList)) {
-    # To add the gene rankings to gene names as a new variable
     screenList[[i]][[2]] <- c(1:isolate(input$nTopHetero), rep(isolate(input$nTopHetero), length(screenList[[i]][[1]])-isolate(input$nTopHetero)))
   }
   
-  # Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies
-  combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
+  # validate(need(sum(screenClass) != 0), "Please select at least one study per group!")
   
-  screenRP <- RankProducts(as.matrix(combinedHits[,-1]), cl = groupHet(), rand = 1, na.rm = T)
-  screenDiff <- tibble(combinedHits$Gene, screenRP[["RPrank"]][,1], screenRP[["RPrank"]][,2])
-  colnames(screenDiff) <- c("Gene", "Markers1", "Markers2")
-  screenDiff
-})
+  if(sum(screenClass) == 1) {
+    
+    tmpComb <- list()
+    
+    for(i in 1:length(screenList)) {
+      tmpComb[[i]] <- screenList[[i]][[1]]
+    }
+    tmpComb <- tmpComb[screenClass != T]
+    aggHits <- aggregateRanks(tmpComb, method = "RRA")
+    aggHits <- tibble(1:dim(aggHits)[1], aggHits)
+    colnames(aggHits) <- c("allAggRank", "Gene", "Score")
+    
+    screenDiff <- aggHits %>% mutate(allAggRank = if_else(allAggRank < isolate(input$nTopHetero), as.integer(allAggRank), isolate(input$nTopHetero))) %>%
+      left_join(screenList[[which(screenClass == 1)]], by = "Gene") %>%
+      mutate(Markers = !!as.name(names(screenList[[which(screenClass == 1)]])[2]) - allAggRank) %>%
+      arrange(Markers) %>% 
+      mutate(Markers = 1:length(Markers)) %>%
+      dplyr::select(Gene, Markers)
+  }
+  else {
+    # Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies
+    combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
+    # RP
+    screenRP <- RankProducts(as.matrix(combinedHits[,-1]), cl = screenClass, rand = 1, na.rm = T)
+    screenDiff <- tibble(combinedHits$Gene, screenRP[["RPrank"]][,2])
+    colnames(screenDiff) <- c("Gene", "Markers")
+    screenDiff 
+  }
+  
+  screenDiff %>% dplyr::arrange(Markers) %>% dplyr::rename("Rank for uniqueness" = Markers)
+  
+  })
 
-rankProdUp <- reactive({
-  screenDiff <- rankProdReact()
-  screenDiff <- screenDiff %>%
-    dplyr::arrange(Markers1) %>%
-    dplyr::select(Markers1, Gene) %>%
-    dplyr::rename("Rank for 1st group uniqueness" = Markers1)
-})
+# rankProdUp <- reactive({
+#   screenDiff <- rankProdReact()
+#   screenDiff <- screenDiff %>%
+#     dplyr::arrange(Markers1) %>%
+#     dplyr::select(Markers1, Gene) %>%
+#     dplyr::rename("Rank for 1st group uniqueness" = Markers1)
+# })
 
-rankProdDown <- reactive({
-  screenDiff <- rankProdReact()
-  screenDiff <- screenDiff %>%
-    dplyr::arrange(Markers2) %>%
-    dplyr::select(Markers2, Gene) %>%
-    dplyr::rename("Rank for 2nd group uniqueness" = Markers2)
-})
+# rankProdDown <- reactive({
+#   screenDiff <- rankProdReact()
+#   screenDiff <- screenDiff %>%
+#     dplyr::arrange(Markers2) %>%
+#     dplyr::select(Markers2, Gene) %>%
+#     dplyr::rename("Rank for uniqueness" = Markers2)
+# })
 
-output$tableHeteroUp <- renderDT({
-  tmpTable <- rankProdUp()
+output$tableHetero <- renderDT({
+  
+  tmpTable <- rankProdReact()
   
   datatable(tmpTable,
             
@@ -162,80 +189,93 @@ output$tableHeteroUp <- renderDT({
   )
 })
 
-output$tableHeteroDown <- renderDT({
-  tmpTable <- rankProdDown()
-  
-  datatable(tmpTable,
-            
-            rownames = F,
-            
-            options = list(
-              # Aligning all columns text to center
-              columnDefs = list(list(className = 'dt-center', targets = "_all")),
-              # Customizing the top colnames row -- black color
-              initComplete = JS(
-                "function(settings, json) {",
-                "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
-                "}")
-            )
-  )
-})
+# output$tableHeteroDown <- renderDT({
+#   tmpTable <- rankProdDown()
+#   
+#   datatable(tmpTable,
+#             
+#             rownames = F,
+#             
+#             options = list(
+#               # Aligning all columns text to center
+#               columnDefs = list(list(className = 'dt-center', targets = "_all")),
+#               # Customizing the top colnames row -- black color
+#               initComplete = JS(
+#                 "function(settings, json) {",
+#                 "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
+#                 "}")
+#             )
+#   )
+# })
 
 ### Download handler for the marker ranks population table 1
-output$downloadTableUp <- downloadHandler(
+output$downloadTable <- downloadHandler(
   
   filename = function() {
     paste0(Sys.Date(), "-geneRaMeN.csv")
   }, 
   content = function(file) {
     
-    tmpTable <- rankProdUp()
+    tmpTable <- rankProdReact()
     
     write.csv(tmpTable, file, row.names = F)
   }                                     
 )
 
 ### Download handler for the marker ranks population table 2
-output$downloadTableDown <- downloadHandler(
-  
-  filename = function() {
-    paste0(Sys.Date(), "-geneRaMeN.csv")
-  }, 
-  content = function(file) {
-    
-    tmpTable <- rankProdDown()
-    
-    write.csv(tmpTable, file, row.names = F)
-  }                                     
-)
+# output$downloadTableDown <- downloadHandler(
+#   
+#   filename = function() {
+#     paste0(Sys.Date(), "-geneRaMeN.csv")
+#   }, 
+#   content = function(file) {
+#     
+#     tmpTable <- rankProdDown()
+#     
+#     write.csv(tmpTable, file, row.names = F)
+#   }                                     
+# )
 
 ### Heatmap presentation of ranks of all top genes plus clustering
 heatmapHeteroReact <- reactive({
   
   screenList <- metaScreenHetero()
+  screenClass <- groupHet()
   
-  tmpUp <- rankProdUp() %>% 
-    slice_head(n = input$nHeatmapHeteroUp) %>% 
+  # To add the gene rankings to gene names as a new variable
+  for(i in 1:length(screenList)) {
+    screenList[[i]][[2]] <- c(1:isolate(input$nTopHetero), rep(isolate(input$nTopHetero), length(screenList[[i]][[1]])-isolate(input$nTopHetero)))
+  }
+  
+  markersList <- rankProdReact() %>% 
+    slice_head(n = input$nHeatmapHetero) %>% 
     dplyr::select(Gene) %>% 
     unlist()
   
-  tmpDown <- rankProdDown() %>% 
-    slice_head(n = input$nHeatmapHeteroDown) %>% 
-    dplyr::select(Gene) %>% 
-    unlist()
+  # tmpDown <- rankProdDown() %>% 
+  #   slice_head(n = input$nHeatmapHeteroDown) %>% 
+  #   dplyr::select(Gene) %>% 
+  #   unlist()
   
   # Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies
   combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
   combinedHits <- combinedHits %>% 
-    filter(Gene %in% c(tmpUp, tmpDown)) %>%
+    filter(Gene %in% markersList ) %>%
+    
     data.frame()
   rownames(combinedHits) <- combinedHits$Gene
   
+  annoteDf <- data.frame(Group = factor(screenClass))
+  rownames(annoteDf) <- colnames(combinedHits[-1])
+  
   tmpPlot <- pheatmap(combinedHits[,-1],
                       cluster_rows = F,
+                      cluster_cols = input$clustHeatmap,
+                      annotation_col = annoteDf ,
                       fontsize = 12,
                       border_color = NA,
-                      color = colorRampPalette(c("#66b2ff","black"))(200)
+                      color = colorRampPalette(c("#66b2ff","black"))(200),
+                      # display_numbers = TRUE
   )
   
   plotObj$heatmapHetero <- tmpPlot
@@ -245,7 +285,7 @@ heatmapHeteroReact <- reactive({
 ### Heatmap output visualization
 output$heatmapHetero <- renderPlot(heatmapHeteroReact())
 
-plotHeightHetero <- reactive(200 + (20*(input$nHeatmapHeteroUp + input$nHeatmapHeteroDown)))
+plotHeightHetero <- reactive(200 + (20*input$nHeatmapHetero))
 output$heatmapHeteroUI <- renderUI({
   plotOutput("heatmapHetero", height = plotHeightHetero()) %>% withSpinner(type = getOption("spinner.type", default = 4))
 })

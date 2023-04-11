@@ -132,7 +132,8 @@ output$RRA <- DT::renderDT({
   datatable(aggHits %>%
               mutate("Links" = paste0("<a href='https://orcs.thebiogrid.org/Gene/", ENTREZ, "'>BioGRID</a> - ",
                                       "<a href='https://www.ncbi.nlm.nih.gov/gene/", ENTREZ, "'>NCBI</a> - ",
-                                      "<a href='https://www.genecards.org/cgi-bin/carddisp.pl?gene=", Gene, "'>GeneCards</a>")) %>%
+                                      "<a href='https://www.genecards.org/cgi-bin/carddisp.pl?gene=", Gene, "'>GeneCards</a> - ",
+                                      "<a href='https://www.dgidb.org/genes/", Gene, "#_interactions'>DGIdb</a>")) %>%
               dplyr::select(-ENTREZ),
             
             rownames = F,
@@ -150,7 +151,7 @@ output$RRA <- DT::renderDT({
 })
 
 ### Download handler for the aggregated ranks data from the table
-output$downloadRRA = downloadHandler(
+output$downloadRRA <- downloadHandler(
   
   filename = function() {
     paste0(Sys.Date(), "-geneRaMeN.csv")
@@ -180,11 +181,14 @@ scPlotReact <- reactive({
     mutate(Random=sample(seq(1, length(Score))),
            TopHit=ifelse(Score >= Score[input$nScPlotTop],'Yes', 'No')) %>%
     ggplot(aes(Random, Score, label= Gene)) +
-    geom_point(size=5,aes(color=TopHit)) + 
-    geom_label_repel(aes(label=ifelse(TopHit=='Yes',Gene,'')), size = 5) + 
+    geom_point(aes(color=TopHit), 
+               size=5) + 
+    geom_text_repel(aes(label=ifelse(TopHit=='Yes',Gene,'')), 
+                    size = 5, 
+                    # min.segment.length = unit(0.2, "lines"),
+                    point.size = 5) + 
     xlab("Genes") +
     ylab("Significance score") +
-    ggtitle(paste("Aggregated ranks based on", input$aggMethod)) +
     theme(plot.title = element_text(size = 16),
           axis.line = element_line(colour = "black", size = 1),
           axis.text = element_text(size = 12),
@@ -279,8 +283,8 @@ heatmapReact <- reactive({
     pheatmap(cluster_rows = F,
              fontsize = 12,
              border_color = NA,
-             color = colorRampPalette(c("#66b2ff","black"))(200)
-             # cellheight = 15
+             color = colorRampPalette(c("#66b2ff","black"))(200),
+             display_numbers = FALSE
     )
   
   # # Uncomment for a ggplot2 graphic alternative
@@ -341,6 +345,8 @@ output$heatmapTIFF <- downloadHandler(
   }
 )
 
+
+
 ###
 enrichObj <- eventReactive(input$submitEnrich, {
   
@@ -356,7 +362,7 @@ enrichObj <- eventReactive(input$submitEnrich, {
                                 significant = TRUE,
                                 exclude_iea = FALSE, 
                                 measure_underrepresentation = FALSE,
-                                evcodes = FALSE, 
+                                evcodes = TRUE, 
                                 user_threshold = input$pvalEnrich,
                                 correction_method = "g_SCS", 
                                 domain_scope = "annotated",
@@ -366,17 +372,26 @@ enrichObj <- eventReactive(input$submitEnrich, {
                                 as_short_link = FALSE)
 })
 
+
+### Reactive conductor to be used for enrichment table download
+tableObj <- reactiveValues()
+
+###
 output$enrichTable <- renderDT({
   tmpEnrich <- enrichObj()
   
   if (isolate(input$enrichDB) %in% c("GO:BP", "GO:MF", "GO:CC"))
     tmp <- tmpEnrich$result %>%
       mutate("GO_id" = paste0("<a href='http://amigo.geneontology.org/amigo/term/", term_id, "'>", term_id, "</a>")) %>%
-      dplyr::select(term_name, GO_id, term_size, precision, p_value)
+      dplyr::select(term_name, GO_id, term_size, precision, p_value, intersection) %>%
+      mutate(intersection = str_replace_all(intersection, ",", ", "))
   else
     tmp <- tmpEnrich$result %>%
       mutate("KEGG_id" = paste0("<a href='https://www.genome.jp/entry/map", substr(term_id, 6, nchar(term_id)), "'>", term_id, "</a>")) %>%
-      dplyr::select(term_name, KEGG_id, term_size, precision, p_value)
+      dplyr::select(term_name, KEGG_id, term_size, precision, p_value, intersection) %>%
+      mutate(intersection = str_replace_all(intersection, ",", ", "))
+
+  tableObj$enrich <- tmp
   
   datatable(tmp,
             rownames = T,
@@ -395,27 +410,27 @@ output$enrichTable <- renderDT({
 })
 
 ### Download handler for the gene ontology / pathway enrivhment data from the table
-output$downloadEnrich = downloadHandler(
-  
+output$downloadEnrich <- downloadHandler(
   filename = function() {
     paste0(Sys.Date(), "-geneRaMeN.csv")
-  }, 
+  },
   content = function(file) {
-    write.csv(enrichObj(), file, row.names = F)
-  }                                     
+    write.csv(tableObj$enrich, file)
+  }
 )
 
 enrichPlotReact <- reactive({
   tmpEnrich <- enrichObj()
   
-  tmpPlot <- ggplot(data = tmpEnrich$result, aes(x = -log10(p_value), y = term_name)) +
+  tmpPlot <- ggplot(data = tmpEnrich$result, aes(x = precision, y = term_name)) +
     geom_point(aes(size = precision, color = -log10(p_value))) +
     scale_colour_gradient(high = "red", low = "darkblue") +
+    theme_linedraw() +
     theme(plot.title = element_text(size = 16),
-          axis.line = element_line(colour = "black", linewidth = 1),
+          # panel.background = element_blank(),
+          # axis.line = element_line(colour = "black", linewidth = 1),
           axis.text = element_text(size = 12),
-          axis.title = element_text(size = 12),
-          panel.background = element_blank())
+          axis.title = element_text(size = 12))
   
   plotObj$enrich <- tmpPlot
   tmpPlot
@@ -464,7 +479,7 @@ output$enrichUI <- renderUI({
     DT::DTOutput("enrichTable", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4)),
     br(),
     hr(),
-    plotOutput("enrichPlot", width = "100%", height = (100 + 20*dim(tmpEnrich$result)[1])) %>% withSpinner(type = getOption("spinner.type", default = 4)),
+    plotOutput("enrichPlot", width = "100%", height = (200 + 20*dim(tmpEnrich$result)[1])) %>% withSpinner(type = getOption("spinner.type", default = 4)),
     fluidRow(column(3, numericInput("wEnrich", label = "Width", value = 10)),
              column(3, numericInput("hEnrich", label = "Height", value = 10)),
              column(3, numericInput("ppiEnrich", label = "Resolution", value = 300)),

@@ -1,9 +1,8 @@
 ################################################################################
-######################## Gene-RaMeN server function ############################
+######################## Gene RaMeN server function ############################
 ################################################################################
 
-
-### Uncomment for deploying to shinyapps.io
+### Uncomment for deploying to shinyapps.io | REMOVE BEFORE PUBLICATION
 # setrepositories for bioc first:
 # rsconnect::deployApp(appDir = "~/Documents/GitHub/Gene-RaMeN", appName = "Dev-Meisam", account = "ysolab")
 # rsconnect::configureApp("Dev-Meisam", size="xxxlarge", account = "ysolab")
