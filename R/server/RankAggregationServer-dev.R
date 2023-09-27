@@ -1,5 +1,5 @@
 ################################################################################
-################## GeneRaMeN server for rank aggregation tab ###################
+################# Gene-RaMeN server for rank aggregation tab ###################
 ################################################################################
 
 ### Reactive conductor to read the selected pre-loaded dataset from server
@@ -53,29 +53,51 @@ output$studyList <- DT::renderDT({
 
 ### Reactive conductor for cleaning/standardizing the screening data
 metaScreen <- eventReactive(input$submit, {
-  
+
   inputPre <- dataInputPre()
   inputUser <- dataInputUser()
   screenList <- c(inputPre, inputUser)
   
-  if(!is.null(input$userFile)) {
-    
-    for(i in 1:length(screenList)) {
-      # To standardize the Gene name aliases based on official gene symbol
-      screenList[[i]][[1]] <- unlist(AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, keys=screenList[[i]][[1]], column="SYMBOL", keytype="ALIAS", multiVals="first"))
-      # To add the gene rankings to gene names as a new variable
-      screenList[[i]][[2]] <- 1:length(screenList[[i]][[1]])
-      # To remove all other columns except Gene name and ranks
-      screenList[[i]]<- tidyr::tibble(screenList[[i]][,1:2])
-      # To remove gene names which could not be attributed to an official gene symbol
-      screenList[[i]] <- na.omit(screenList[[i]])
-      # Renaming
-      colnames(screenList[[i]]) <- c("Gene", names(screenList[i]))
-      # To remove duplicate gene names if any from the datasets
-      screenList[[i]] <- dplyr::distinct(screenList[[i]], Gene, .keep_all= TRUE)
-    }
+  ### For MacOS / Linux parallelized --- Option 1
+  # Set the number of cores
+  num_cores <- 4
+  # Register the parallel backend
+  cl <- makeCluster(num_cores)
+  registerDoParallel(cl)
+  
+  foreach(i = 1:length(screenList)) %dopar% {
+    # To standardize the Gene name aliases based on official gene symbol
+    screenList[[i]][[1]] <- unlist(AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, keys=screenList[[i]][[1]], column="SYMBOL", keytype="ALIAS", multiVals="first"))
+    # To add the gene rankings to gene names as a new variable
+    screenList[[i]][[2]] <- 1:length(screenList[[i]][[1]])
+    # To remove all other columns except Gene name and ranks
+    screenList[[i]]<- tidyr::tibble(screenList[[i]][,1:2])
+    # To remove gene names which could not be attributed to an official gene symbol
+    screenList[[i]] <- na.omit(screenList[[i]])
+    # Renaming
+    colnames(screenList[[i]]) <- c("Gene", names(screenList[i]))
+    # To remove duplicate gene names if any from the datasets
+    screenList[[i]] <- dplyr::distinct(screenList[[i]], Gene, .keep_all= TRUE)
   }
+  stopCluster(cl)
   screenList
+  
+  ### For Windows non-parallelized --- Option 2
+  # for(i in 1:length(screenList)) {
+  #   # To standardize the Gene name aliases based on official gene symbol
+  #   screenList[[i]][[1]] <- unlist(AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, keys=screenList[[i]][[1]], column="SYMBOL", keytype="ALIAS", multiVals="first"))
+  #   # To add the gene rankings to gene names as a new variable
+  #   screenList[[i]][[2]] <- 1:length(screenList[[i]][[1]])
+  #   # To remove all other columns except Gene name and ranks
+  #   screenList[[i]]<- tidyr::tibble(screenList[[i]][,1:2])
+  #   # To remove gene names which could not be attributed to an official gene symbol
+  #   screenList[[i]] <- na.omit(screenList[[i]])
+  #   # Renaming
+  #   colnames(screenList[[i]]) <- c("Gene", names(screenList[i]))
+  #   # To remove duplicate gene names if any from the datasets
+  #   screenList[[i]] <- dplyr::distinct(screenList[[i]], Gene, .keep_all= TRUE)
+  # }
+  # screenList
 })
 
 ### Reactive conductor to generate a data-frame containing all studies' gene names -- to be used by RRA and GO
@@ -96,11 +118,11 @@ observeEvent(input$submit, {
   updateTabsetPanel(session = session, inputId = "aggregationPanel", selected = "Robust ranks")
 })
 
-### Reactive conductor to calculate the robust ranks by RRA or geometric mean
+## Reactive conductor to calculate the robust ranks by RRA or geometric mean
 aggHitsRRA <- eventReactive(input$submit, {
-  
-  req(input$aggMethod %in% c('RRA', 'geom.mean', 'mean'))
-  
+
+  # req(input$aggMethod %in% c('RRA', 'geom.mean'))
+
   tmpComb <- listCombinedGene()
   aggHits <- aggregateRanks(tmpComb, N = input$nTop, method = input$aggMethod)
   aggHits[,'Score'] <- -log10(aggHits[, 'Score'])
@@ -109,7 +131,8 @@ aggHitsRRA <- eventReactive(input$submit, {
   aggHits
 })
 
-# ### Reactive conductor to calculate the robust ranks by BIRRA
+
+### Reactive conductor to calculate the robust ranks by BIRRA
 # aggHitsBIRRA <- eventReactive(input$submit, {
 #   
 #   req(input$aggMethod == 'BIRRA')
@@ -128,11 +151,14 @@ aggHitsRRA <- eventReactive(input$submit, {
 ### Data table showing the aggregated ranks
 output$RRA <- DT::renderDT({
   
-  if (isolate(input$aggMethod) %in% c("RRA", "geom.mean", "mean")) {
-    aggHits <- aggHitsRRA()
-    aggHits <- aggHits %>% dplyr::filter(Score > 0)
-  } else
-    aggHits <- aggHitsBIRRA()
+  # if (isolate(input$aggMethod) %in% c("RRA", "geom.mean")) {
+  #   aggHits <- aggHitsRRA()
+  #   aggHits <- aggHits %>% dplyr::filter(Score > 0)
+  # } else
+  #   aggHits <- aggHitsBIRRA()
+  
+  aggHits <- aggHitsRRA()
+  aggHits <- aggHits %>% dplyr::filter(Score > 0)
   
   aggHits$ENTREZ <- mapIds(org.Hs.eg.db, keys=aggHits$Gene, column="ENTREZID", keytype="SYMBOL", multiVals="first")
   
@@ -164,7 +190,7 @@ output$downloadRRA <- downloadHandler(
     paste0(Sys.Date(), "-geneRaMeN.csv")
   }, 
   content = function(file) {
-    if (isolate(input$aggMethod) %in% c("RRA", "geom.mean", "mean"))
+    if (isolate(input$aggMethod) %in% c("RRA", "geom.mean"))
       aggHits <- aggHitsRRA()
     else
       aggHits <- aggHitsBIRRA()
@@ -185,7 +211,7 @@ scPlotReact <- reactive({
   
   aggHits <- aggHitsRRA()
   tmpPlot <- aggHits %>%
-    mutate(Random=sample(seq(1, length(Score))),
+    dplyr::mutate(Random=sample(seq(1, length(Score))),
            TopHit=ifelse(Score >= Score[input$nScPlotTop],'Yes', 'No')) %>%
     ggplot(aes(Random, Score, label= Gene)) +
     geom_point(aes(color=TopHit), 
@@ -249,15 +275,16 @@ output$scPlotTIFF <- downloadHandler(
 ### Reactive conductor merging all ranks per gene in a single df -- to be used as table output and heatmap 
 allRanks <- reactive({
   
-  if (isolate(input$aggMethod) %in% c("RRA", "geom.mean", "mean"))
-    aggHits <- aggHitsRRA()
-  else
-    aggHits <- aggHitsBIRRA()
+  # if (isolate(input$aggMethod) %in% c("RRA", "geom.mean"))
+  #   aggHits <- aggHitsRRA()
+  # else
+  #   aggHits <- aggHitsBIRRA()
   
+  aggHits <- aggHitsRRA()
   screenList <- metaScreen()
   # Appending robust rank as a study to the list of all studies
-  screenList <- append(screenList, list(dplyr::select(aggHits, "Gene", "Aggregated Rank")), after = 0)
-  combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene") %>% arrange("Aggregated Rank")
+  # screenList <- append(screenList, list(dplyr::select(aggHits, "Gene", "Aggregated Rank")), after = 0)
+  combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene") #%>% arrange("Aggregated Rank")
   combinedHits
 })
 
@@ -357,7 +384,7 @@ output$heatmapTIFF <- downloadHandler(
 ###
 enrichObj <- eventReactive(input$submitEnrich, {
   
-  if (isolate(input$aggMethod) %in% c("RRA", "geom.mean", "mean"))
+  if (isolate(input$aggMethod) %in% c("RRA", "geom.mean"))
     aggHits <- aggHitsRRA()
   else
     aggHits <- aggHitsBIRRA()
@@ -397,7 +424,7 @@ output$enrichTable <- renderDT({
       mutate("KEGG_id" = paste0("<a href='https://www.genome.jp/entry/map", substr(term_id, 6, nchar(term_id)), "'>", term_id, "</a>")) %>%
       dplyr::select(term_name, KEGG_id, term_size, precision, p_value, intersection) %>%
       mutate(intersection = str_replace_all(intersection, ",", ", "))
-  
+
   tableObj$enrich <- tmp
   
   datatable(tmp,
@@ -429,7 +456,7 @@ output$downloadEnrich <- downloadHandler(
 enrichPlotReact <- reactive({
   tmpEnrich <- enrichObj()
   
-  tmpPlot <- ggplot(data = dplyr::arrange(tmpEnrich$result, desc(precision)), aes(x = precision, y = factor(term_name, levels = rev(term_name)))) +
+  tmpPlot <- ggplot(data = tmpEnrich$result, aes(x = precision, y = term_name)) +
     geom_point(aes(size = precision, color = -log10(p_value))) +
     scale_colour_gradient(high = "red", low = "darkblue") +
     theme_linedraw() +

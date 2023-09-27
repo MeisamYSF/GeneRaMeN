@@ -1,5 +1,5 @@
 ################################################################################
-#################### Gene-RaMeN ui for rank uniqueness tab #####################
+##################### GeneRaMeN ui for rank uniqueness tab #####################
 ################################################################################
 
 tabPanel("Rank uniqueness",
@@ -10,9 +10,9 @@ tabPanel("Rank uniqueness",
              radioButtons("studyHetero", strong("Please select which dataset you want to use:"),
                           width = '100%',
                           choices = c("None" = "None",
-                                      "SARS-CoV-2 screens" = "SARS2",
-                                      "Flavivirus screens" = "Flavi",
-                                      "Picornavirus screens" = "Picorna"),
+                                      "SARS-CoV-2 screens" = "SARS2_v2",
+                                      "Flavivirus screens" = "Flavi_v2",
+                                      "Enterovirus screens" = "Entero_v2"),
                           selected = "None"),
              
              helpText(
@@ -28,15 +28,17 @@ tabPanel("Rank uniqueness",
              
              tags$hr(),
              
-             uiOutput("contrastPanel")
-             
+             uiOutput("contrastPanel"),
+
            ),
            
            mainPanel(
              
              tabsetPanel(
                
-               tabPanel("Input overview",
+               id = "uniquePanel",
+               
+               tabPanel("Input Overview",
                         
                         DT::DTOutput("studyListHetero", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))
                ),
@@ -53,15 +55,18 @@ tabPanel("Rank uniqueness",
                         )
                ),
                
+               # tabPanel("Scatter Plot",
+               # 
+               #          plotlyOutput("plotlyUp") %>% withSpinner(type = getOption("spinner.type", default = 4)),
+               #          plotlyOutput("plotlyDown") %>% withSpinner(type = getOption("spinner.type", default = 4)),
+               # ),
+               
                tabPanel("Heatmap",
-                        fluidRow(column(4, sliderInput("nHeatmapHetero", "Number of the unique ranks to be visualized for 1st group:",
-                                                       min = 0, max = 50, value = 20)),
-                                 column(4, checkboxInput("clustHeatmap", label = "Clustering the studies", value = FALSE)),
-                                 column(4, checkboxInput("dispNumHeatmap ", label = "Display the ranks", value = TRUE))),
-                        
-                        # sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
-                        #             min = 0, max = 20, value = 5
-                        # ),
+                        fluidRow(column(4, sliderInput("nHeatmapHeteroUp", "Number of the unique ranks to be visualized for 1st group:",
+                                                       min = 0, max = 20, value = 5)),
+                                 column(4, sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
+                                             min = 0, max = 20, value = 5)),
+                                 column(4, checkboxInput("clustHeatmap", label = "Cluster the studies/columns", value = FALSE))),
                         hr(),
                         uiOutput("heatmapHeteroUI"),
                         br(),
