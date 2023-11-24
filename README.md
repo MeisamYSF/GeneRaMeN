@@ -1,5 +1,5 @@
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
-[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
+[![GPLv2 license](https://img.shields.io/badge/License-GPLv2-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
 
 # GeneRaMeN
 Gene Rank Meta aNalyzer (GeneRaMeN) is an R/Shiny app designed for integration, comparison, and meta analysis of multiple ranked gene lists, with a primary focus on genome-wide CRISPR screening outputs. GeneRaMeN consists of two main functionalities: 
