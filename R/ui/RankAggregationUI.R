@@ -10,13 +10,14 @@ tabPanel("Rank aggregation",
              radioButtons("study", strong("Please select which dataset you want to use:"),
                           width = '100%',
                           choices = c("None" = "None",
-                                      "SARS-CoV-2 screens" = "SARS2_v2",
-                                      "Flavivirus screens" = "Flavi_v2",
-                                      "Enterovirus screens" = "Entero_v2"),
+                                      "SARS-CoV-2 screens" = "SARS2_v3",
+                                      "Flavivirus screens" = "Flavi_v3",
+                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v1",
+                                      "Picornavirus screens" = "Picorna_v3"),
                           selected = "None"),
              
              helpText(
-               "select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
+               "Select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
              ),
              
              tags$hr(),
@@ -24,6 +25,25 @@ tabPanel("Rank aggregation",
              fileInput("userFile", strong("Upload your own dataset:"),
                        multiple = F,
                        accept = c(".xlsx")
+             ),
+             
+             helpText(
+               "Refer to Tutorial tab for file format instructions."
+             ),
+             
+             tags$hr(),
+             
+             checkboxInput("metaData", label = "Include meta-data in the plots (Optional)", value = FALSE),
+             
+             conditionalPanel(
+               condition = "input.metaData",
+               fileInput("userMetaFile", strong("Upload your meta data file:"),
+                         multiple = F,
+                         accept = c(".xlsx")
+               ),
+               helpText(
+                 "Refer to Tutorial tab for file format instructions."
+               )
              ),
              
              tags$hr(),
@@ -49,11 +69,11 @@ tabPanel("Rank aggregation",
                
                id = "aggregationPanel",
                
-               tabPanel("Input overview",
+               tabPanel("Input Overview",
                         DT::DTOutput("studyList", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))
                ),
                
-               tabPanel("Robust ranks",
+               tabPanel("Aggregated ranks",
                         textOutput("parallel"),
                         p(class = 'text-center', downloadButton('downloadRRA', 'Download table!')),
                         DT::DTOutput("RRA", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))
@@ -102,7 +122,7 @@ tabPanel("Rank aggregation",
                         )
                ),
                
-               tabPanel("Gene rank finder", DT::DTOutput("rankFinder", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
+               tabPanel("Gene Rank Finder", DT::DTOutput("rankFinder", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
                
                tabPanel("Heatmap",
                         sliderInput("nHeatmap", "Number of the top hits:",
@@ -149,7 +169,7 @@ tabPanel("Rank aggregation",
                         )
                ),
                
-               tabPanel("Pathway enrichment",
+               tabPanel("Enrichment Analysis",
                         
                         fluidRow(column(3, numericInput("nEnrich", label = "Number of top hits:", value = 100)),
                                  column(3, selectInput("enrichDB", label = "Query database:", 

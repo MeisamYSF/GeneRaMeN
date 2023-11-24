@@ -2,17 +2,27 @@
 ################## GeneRaMeN server for rank aggregation tab ###################
 ################################################################################
 
-### Reactive conductor to read the selected pre-loaded dataset from server
+### Reactive element to read the pre-loaded dataset selected in the UI
 dataInputPre <- reactive({
   screenList <- list()
   if(input$study == "None")
     return(screenList)
   else
     tmpName <- paste0(input$study, ".rds")
-  screenList <- readRDS(paste0("Data/", tmpName))
+  screenList <- readRDS(paste0("Data/PresetData/", tmpName))
 })
 
-### Reactive conductor to read the input excel file from the user
+### Reactive element to read the meta data for the pre-loaded dataset selected in the UI
+metaDataInputPre <- reactive({
+  metaDataPre <- NULL
+  if(input$study == "None")
+    return(metaDataPre)
+  else
+    tmpName <- paste0(input$study, "_meta.xlsx")
+  inputPreMeta <- read_excel(paste0("Data/PresetMetaData/", tmpName))
+})
+
+### Reactive element to read the input excel file from the user
 dataInputUser <- reactive({
   userFile <- input$userFile
   # validate(need(tools::file_ext(userFile$datapath) == "xlsx", "Please upload an excel file"))
@@ -22,21 +32,59 @@ dataInputUser <- reactive({
     userFile$datapath %>% readxl::excel_sheets() %>% purrr::set_names() %>% map(read_excel, path = userFile$datapath)
 })
 
-### Data table output of all studies for overview
+annotateMetaData <- reactive({
+  inputPre <- dataInputPre()
+  inputUser <- dataInputUser()
+  screenList <- c(inputPre, inputUser)
+  
+  if (input$metaData) {
+    inputPreMeta <- metaDataInputPre()
+    
+    if(is.null(input$userFile))
+      metaDataTable <- inputPreMeta
+    else {
+      
+      if(is.null(input$userMetaFile)) stop("Please upload a meta-data file")
+      
+      # validate(need(input$userMetaFile), "Please upload a meta-data file")
+      userMetaFile <- input$userMetaFile
+      inputUserMeta <- read_excel(userMetaFile$datapath)
+      
+      # if(dim(inputPreMeta) != dim(inputUserMeta)) stop("The uploaded meta data file is not compatible.")
+      # if(dim(inputUser)[1] != dim(inputUserMeta)[1]) stop("The uploaded meta data file is not compatible.")
+      
+      # validate(need(dim(inputPreMeta)[2] == dim(inputUserMeta)[2], "The uploaded meta data file is not compatible."))
+      # validate(need(dim(inputUser)[1] == dim(inputUserMeta)[1], "The uploaded meta data file is not compatible."))
+      metaDataTable <- rbind(inputPreMeta, inputUserMeta)
+    }
+  }
+  else
+    return(NULL)
+})
+
+### Data table output of all studies + adding optional meta data to the table. For Overview tabset
 output$studyList <- DT::renderDT({
   
   inputPre <- dataInputPre()
   inputUser <- dataInputUser()
   screenList <- c(inputPre, inputUser)
-  
-  # validate(need(length(screenList) != 0, "Waiting to submit a dataset ..."))
+  metaDataTable <- annotateMetaData()
   
   # Check for Null value
   if(length(screenList) == 0)
     return(NULL)
-  else
-    DT::datatable(tibble("Study Number" = 1:length(screenList),
-                         "Study" = names(screenList)),
+  else {
+    
+    if (input$metaData) {
+      overViewTable <- cbind(tibble("Study Number" = 1:length(screenList),
+                                    "Study" = names(screenList)),
+                             metaDataTable[,-1])
+    }
+    else
+      overViewTable <- tibble("Study Number" = 1:length(screenList),
+                              "Study" = names(screenList))
+    
+    DT::datatable(overViewTable,
                   rownames = F,
                   
                   options = list(
@@ -49,6 +97,7 @@ output$studyList <- DT::renderDT({
                       "}")
                   )
     )
+  }
 })
 
 ### Reactive conductor for cleaning/standardizing the screening data
@@ -93,7 +142,7 @@ listCombinedGene <- reactive({
 })
 
 observeEvent(input$submit, {
-  updateTabsetPanel(session = session, inputId = "aggregationPanel", selected = "Robust ranks")
+  updateTabsetPanel(session = session, inputId = "aggregationPanel", selected = "Aggregated ranks")
 })
 
 ### Reactive conductor to calculate the robust ranks by RRA or geometric mean
@@ -105,7 +154,7 @@ aggHitsRRA <- eventReactive(input$submit, {
   aggHits <- aggregateRanks(tmpComb, N = input$nTop, method = input$aggMethod)
   aggHits[,'Score'] <- -log10(aggHits[, 'Score'])
   aggHits <- tibble(1:dim(aggHits)[1], aggHits)
-  colnames(aggHits) <- c("Aggregated Rank", "Gene", "Score")
+  colnames(aggHits) <- c("AggregatedRank", "Gene", "Score")
   aggHits
 })
 
@@ -256,8 +305,8 @@ allRanks <- reactive({
   
   screenList <- metaScreen()
   # Appending robust rank as a study to the list of all studies
-  screenList <- append(screenList, list(dplyr::select(aggHits, "Gene", "Aggregated Rank")), after = 0)
-  combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene") %>% arrange("Aggregated Rank")
+  screenList <- append(screenList, list(dplyr::select(aggHits, "Gene", "AggregatedRank")), after = 0)
+  combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene") %>% arrange("AggregatedRank")
   combinedHits
 })
 
@@ -282,27 +331,46 @@ output$rankFinder <- DT::renderDT({
 ### Heatmap presentation of ranks of all top genes plus clustering
 heatmapReact <- reactive({
   combinedHits <- data.frame(allRanks())
-  rownames(combinedHits) <- combinedHits$Gene
-  
-  tmpPlot <- combinedHits %>% 
+  tmpNames <- combinedHits$Gene
+  combinedHits <- combinedHits %>% 
     slice_head(n = input$nHeatmap) %>%
-    dplyr::select(-Gene, -"Aggregated.Rank") %>%
-    pheatmap(cluster_rows = F,
-             fontsize = 12,
-             border_color = NA,
-             color = colorRampPalette(c("#66b2ff","black"))(200),
-             display_numbers = FALSE
-    )
+    dplyr::select(-c(Gene, AggregatedRank))
+  rownames(combinedHits) <- tmpNames[1:input$nHeatmap]
+  combinedHits[combinedHits > isolate(input$nTop)] <- isolate(input$nTop)
   
-  # # Uncomment for a ggplot2 graphic alternative
-  # combinedHits$Gene <- fct_rev(factor(combinedHits$Gene, levels = combinedHits$Gene))
-  # tmpPlot <- combinedHits %>%
-  #   slice_head(n = input$nHeatmap) %>%
-  #   pivot_longer(cols = -"Gene", names_to = "Study", values_to = "Ranks") %>%
-  #   ggplot(aes(Study, Gene)) +
-  #   geom_tile(aes(fill = Ranks)) +
-  #   scale_fill_continuous(high = "black", low = "#56B1F7") +
-  #   ggpubr::rotate_x_text(angle = 45)
+  if (input$metaData) {
+    annoteDf <- annotateMetaData()
+    
+    tmpNames <- unlist(annoteDf[, 1])
+    annoteDf <- data.frame(annoteDf[, -1])
+    rownames(annoteDf) <- colnames(combinedHits)
+    c
+    
+    tmpPlot <- pheatmap(combinedHits,
+                        cluster_rows = F,
+                        fontsize_row = 12,
+                        border_color = NA,
+                        show_rownames = T,
+                        na_col = "grey70", 
+                        annotation_col = annoteDf,
+                        color = colorRampPalette(c("orangered2","black"))(200),
+                        # color = colorRampPalette(c("#66b2ff","black"))(200),
+                        display_numbers = FALSE,
+                        # annotation_colors = color_palettes 
+    )
+  }
+  else {
+    tmpPlot <- pheatmap(combinedHits,
+                        cluster_rows = F,
+                        fontsize_row = 12,
+                        border_color = NA,
+                        show_rownames = T,
+                        na_col = "grey70",
+                        color = colorRampPalette(c("orangered2","black"))(200),
+                        # color = colorRampPalette(c("#66b2ff","black"))(200),
+                        display_numbers = FALSE
+    )
+  }
   
   plotObj$heatmap <- tmpPlot
   tmpPlot
@@ -311,7 +379,7 @@ heatmapReact <- reactive({
 ### Heatmap output visualization
 output$heatmap <- renderPlot(heatmapReact())
 
-plotHeight <- reactive(200 + (20*input$nHeatmap))
+plotHeight <- reactive(200 + (15*input$nHeatmap))
 output$heatmapUI <- renderUI({
   plotOutput("heatmap", height = plotHeight()) %>% withSpinner(type = getOption("spinner.type", default = 4))
 })
@@ -391,12 +459,14 @@ output$enrichTable <- renderDT({
     tmp <- tmpEnrich$result %>%
       mutate("GO_id" = paste0("<a href='http://amigo.geneontology.org/amigo/term/", term_id, "'>", term_id, "</a>")) %>%
       dplyr::select(term_name, GO_id, term_size, precision, p_value, intersection) %>%
-      mutate(intersection = str_replace_all(intersection, ",", ", "))
+      mutate(intersection = str_replace_all(intersection, ",", ", ")) %>% 
+      filter(term_size < 1000)
   else
     tmp <- tmpEnrich$result %>%
       mutate("KEGG_id" = paste0("<a href='https://www.genome.jp/entry/map", substr(term_id, 6, nchar(term_id)), "'>", term_id, "</a>")) %>%
       dplyr::select(term_name, KEGG_id, term_size, precision, p_value, intersection) %>%
-      mutate(intersection = str_replace_all(intersection, ",", ", "))
+      mutate(intersection = str_replace_all(intersection, ",", ", ")) %>% 
+      filter(term_size < 1000)
   
   tableObj$enrich <- tmp
   
@@ -429,7 +499,10 @@ output$downloadEnrich <- downloadHandler(
 enrichPlotReact <- reactive({
   tmpEnrich <- enrichObj()
   
-  tmpPlot <- ggplot(data = dplyr::arrange(tmpEnrich$result, desc(precision)), aes(x = precision, y = factor(term_name, levels = rev(term_name)))) +
+  tmpPlot <- tmpEnrich$result %>% 
+    arrange(desc(precision)) %>%
+    filter(term_size < 1000) %>%
+    ggplot(aes(x = precision, y = factor(term_name, levels = rev(term_name)))) +
     geom_point(aes(size = precision, color = -log10(p_value))) +
     scale_colour_gradient(high = "red", low = "darkblue") +
     theme_linedraw() +

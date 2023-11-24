@@ -9,7 +9,17 @@ dataInputHeteroPre <- reactive({
     return(screenList)
   else
     tmpName <- paste0(input$studyHetero, ".rds")
-  screenList <- readRDS(paste0("Data/", tmpName))
+  screenList <- readRDS(paste0("Data/PresetData/", tmpName))
+})
+
+### Reactive element to read the meta data for the pre-loaded dataset selected in the UI
+metaDataInputHeteroPre <- reactive({
+  metaDataPre <- NULL
+  if(input$studyHetero != "None") {
+    tmpName <- paste0(input$studyHetero, "_meta.xlsx")
+    metaDataPre <- read_excel(paste0("Data/PresetMetaData/", tmpName))
+  }
+  else return(metaDataPre)
 })
 
 ### Reactive conductor to read the input excel file from the user
@@ -22,6 +32,36 @@ dataInputHeteroUser <- reactive({
     userFile$datapath %>% readxl::excel_sheets() %>% purrr::set_names() %>% map(read_excel, path = userFile$datapath)
 })
 
+annotateMetaDataHetero <- reactive({
+  inputPre <- dataInputHeteroPre()
+  inputUser <- dataInputHeteroUser()
+  screenList <- c(inputPre, inputUser)
+  
+  if (input$metaDataHetero) {
+    inputPreMeta <- metaDataInputHeteroPre()
+    
+    if(is.null(input$userFileHetero))
+      metaDataTable <- inputPreMeta
+    else {
+      
+      if(is.null(input$userMetaFileHetero)) stop("Please upload a meta-data file")
+      
+      # validate(need(input$userMetaFile), "Please upload a meta-data file")
+      userMetaFileHetero <- input$userMetaFileHetero
+      inputUserMeta <- read_excel(userMetaFileHetero$datapath)
+      
+      # if(dim(inputPreMeta) != dim(inputUserMeta)) stop("The uploaded meta data file is not compatible.")
+      # if(dim(inputUser)[1] != dim(inputUserMeta)[1]) stop("The uploaded meta data file is not compatible.")
+      
+      # validate(need(dim(inputPreMeta)[2] == dim(inputUserMeta)[2], "The uploaded meta data file is not compatible."))
+      # validate(need(dim(inputUser)[1] == dim(inputUserMeta)[1], "The uploaded meta data file is not compatible."))
+      metaDataTable <- rbind(inputPreMeta, inputUserMeta)
+    }
+  }
+  else
+    return(NULL)
+})
+
 ### Reactive conductor to combine data from user and pre-loaded
 dataHetero <- reactive({
   
@@ -31,16 +71,26 @@ dataHetero <- reactive({
 })
 
 ### Data table output of all studies for overview
+
 output$studyListHetero <- DT::renderDT({
   
   screenList <- dataHetero()
+  metaData <- annotateMetaDataHetero()
   
   # Check for Null value
   if(length(screenList) == 0)
     return(NULL)
-  else
-    DT::datatable(tibble("Study Number" = 1:length(screenList),
-                         "Study" = names(screenList)),
+  else {
+    
+    if (input$metaDataHetero) 
+      overViewTable <- cbind(tibble("Study Number" = 1:length(screenList),
+                                    "Study" = names(screenList)),
+                             metaData[,-1])
+    else
+      overViewTable <- tibble("Study Number" = 1:length(screenList),
+                              "Study" = names(screenList))
+    
+    DT::datatable(overViewTable,
                   rownames = F,
                   
                   options = list(
@@ -53,6 +103,26 @@ output$studyListHetero <- DT::renderDT({
                       "}")
                   )
     )
+  }
+  
+  # # Check for Null value
+  # if(length(screenList) == 0)
+  #   return(NULL)
+  # else
+  #   DT::datatable(tibble("Study Number" = 1:length(screenList),
+  #                        "Study" = names(screenList)),
+  #                 rownames = F,
+  #
+  #                 options = list(
+  #                   # Aligning all columns text to center
+  #                   columnDefs = list(list(className = 'dt-center', targets = "_all")),
+  #                   # Customizing the top colnames row -- black color
+  #                   initComplete = JS(
+  #                     "function(settings, json) {",
+  #                     "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
+  #                     "}")
+  #                 )
+  #   )
 })
 
 output$contrastPanel <- renderUI({
@@ -78,8 +148,8 @@ output$contrastPanel <- renderUI({
     radioButtons("uniqueMethod", strong("Please select the algorithm you want to use for rank uniqueness identification:"),
                  width = '100%',
                  choices = c("Robust Rank Aggregation" = "RRA",
-                             "Rank Product (Geometric Mean)" = "RP",
-                             "Rank Sum (Mean)" = "RS"),
+                             "Geometric Mean" = "RP",
+                             "Mean" = "RS"),
                  selected = "RRA"),
     
     hr(),
@@ -150,9 +220,11 @@ rankUniqReact <- eventReactive(input$submitHetero, {
         for(i in 1:length(screenList)) {
           tmpComb[[i]] <- screenList[[i]][[1]]
         }
-
+        
         tmpComb <- tmpComb[screenClass != T]
-        aggHits <- aggregateRanks(tmpComb, method = "RRA")
+        tmpRankMat <- rankMatrix(tmpComb, N = input$nTopHetero)
+        tmpRankMat[tmpRankMat > 1] <- 1
+        aggHits <- aggregateRanks(rmat = tmpRankMat, method = "RRA")
         aggHits <- tibble(1:dim(aggHits)[1], aggHits)
         colnames(aggHits) <- c("aggRank", "Gene", "Score")
         
@@ -226,18 +298,22 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           tmpComb[[i]] <- screenList[[i]][[1]]
         }
         tmpComb1 <- tmpComb[screenClass != T]
-        aggHits1 <- aggregateRanks(tmpComb1, method = "RRA")
+        tmpRankMat1 <- rankMatrix(tmpComb1, N = input$nTopHetero)
+        tmpRankMat1[tmpRankMat1 > 1] <- 1
+        aggHits1 <- aggregateRanks(rmat = tmpRankMat1, method = "RRA")
         aggHits1 <- tibble(1:dim(aggHits1)[1], aggHits1)
         colnames(aggHits1) <- c("Rank1", "Gene", "Score")
         aggHits1 <- aggHits1 %>% 
-           mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero)))
+          mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero)))
         
         tmpComb2 <- tmpComb[screenClass == T]
-        aggHits2 <- aggregateRanks(tmpComb2, method = "RRA")
+        tmpRankMat2 <- rankMatrix(tmpComb2, N = input$nTopHetero)
+        tmpRankMat2[tmpRankMat2 > 1] <- 1
+        aggHits2 <- aggregateRanks(rmat = tmpRankMat2, method = "RRA")
         aggHits2 <- tibble(1:dim(aggHits2)[1], aggHits2)
         colnames(aggHits2) <- c("Rank2", "Gene", "Score")
         aggHits2 <- aggHits2 %>% 
-         mutate(Rank2 = if_else(Rank2 < isolate(input$nTopHetero), as.integer(Rank2), isolate(input$nTopHetero)))
+          mutate(Rank2 = if_else(Rank2 < isolate(input$nTopHetero), as.integer(Rank2), isolate(input$nTopHetero)))
         
         screenDiff <- aggHits1 %>%
           left_join(aggHits2, by = "Gene") %>%
@@ -349,19 +425,18 @@ rankUniqReact <- eventReactive(input$submitHetero, {
 #     dplyr::rename("Rank for uniqueness" = Markers2)
 # })
 
-x <- reactive({
-  screenDiff <- rankUniqReact()
-  rng <- dim(screenDiff)[1] - 1
-  screenDiff %>% mutate(pval = ifelse(delta >= 0, 
-                                      EnvStats::ptri(delta, min = -rng, max = rng, mode = 0),
-                                      EnvStats::ptri(-delta, min = -rng, max = rng, mode = 0)))
-})
+# x <- reactive({
+#   screenDiff <- rankUniqReact()
+#   rng <- dim(screenDiff)[1] - 1
+#   screenDiff %>% mutate(pval = ifelse(delta >= 0, 
+#                                       EnvStats::ptri(delta, min = -rng, max = rng, mode = 0),
+#                                       EnvStats::ptri(-delta, min = -rng, max = rng, mode = 0)))
+# })
 
 
 output$tableHetero <- renderDT({
   
-  # tmpTable <- rankUniqReact()
-  tmpTable <- x()
+  tmpTable <- rankUniqReact()
   datatable(tmpTable,
             
             rownames = F,
@@ -473,6 +548,7 @@ heatmapHeteroReact <- reactive({
   
   screenList <- metaScreenHetero()
   screenClass <- groupHet()
+  metaData <- annotateMetaDataHetero()
   
   # To add the gene rankings to gene names as a new variable
   for(i in 1:length(screenList)) {
@@ -496,19 +572,35 @@ heatmapHeteroReact <- reactive({
     data.frame()
   rownames(combinedHits) <- combinedHits$Gene
   
-  annoteDf <- data.frame(Group = factor(screenClass))
-  rownames(annoteDf) <- colnames(combinedHits[-1])
-  
-  tmpPlot <- pheatmap(combinedHits[,-1],
-                      cluster_rows = F,
-                      cluster_cols = input$clustHeatmap,
-                      annotation_col = annoteDf ,
-                      fontsize = 12,
-                      border_color = NA,
-                      color = colorRampPalette(c("#66b2ff","black"))(200)
-                      # display_numbers = TRUE
-  )
-  
+  if (input$metaDataHetero) {
+    annoteDf <- cbind(metaData[,-1], data.frame(Group = factor(screenClass)))
+    rownames(annoteDf) <- colnames(combinedHits[-1])
+    
+    tmpPlot <- pheatmap(combinedHits[,-1],
+                        cluster_rows = input$clustHeatmapRow,
+                        cluster_cols = input$clustHeatmapCol,
+                        annotation_col = annoteDf,
+                        fontsize = 12,
+                        border_color = NA,
+                        color = colorRampPalette(c("#66b2ff","black"))(200)
+                        # display_numbers = TRUE
+    )
+  }
+  else {
+    annoteDf <- data.frame(Group = factor(screenClass))
+    rownames(annoteDf) <- colnames(combinedHits[-1])
+    
+    tmpPlot <- pheatmap(combinedHits[,-1],
+                        cluster_rows = input$clustHeatmapRow,
+                        cluster_cols = input$clustHeatmapCol,
+                        fontsize = 12,
+                        annotation_col = annoteDf,
+                        border_color = NA,
+                        color = colorRampPalette(c("#66b2ff","black"))(200)
+                        # display_numbers = TRUE
+    )
+    }
+
   plotObj$heatmapHetero <- tmpPlot
   tmpPlot
 })

@@ -1,5 +1,5 @@
 ################################################################################
-##################### GeneRaMeN ui for rank uniqueness tab #####################
+##################### GeneRaMeN UI for rank uniqueness tab #####################
 ################################################################################
 
 tabPanel("Rank uniqueness",
@@ -10,13 +10,14 @@ tabPanel("Rank uniqueness",
              radioButtons("studyHetero", strong("Please select which dataset you want to use:"),
                           width = '100%',
                           choices = c("None" = "None",
-                                      "SARS-CoV-2 screens" = "SARS2_v2",
-                                      "Flavivirus screens" = "Flavi_v2",
-                                      "Enterovirus screens" = "Entero_v2"),
+                                      "SARS-CoV-2 screens" = "SARS2_v3",
+                                      "Flavivirus screens" = "Flavi_v3",
+                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v1",
+                                      "Picornavirus screens" = "Picorna_v3"),
                           selected = "None"),
              
              helpText(
-               "select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
+               "Select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
              ),
              
              tags$hr(),
@@ -24,6 +25,25 @@ tabPanel("Rank uniqueness",
              fileInput("userFileHetero", strong("Upload your own dataset:"),
                        multiple = F,
                        accept = c(".xlsx")
+             ),
+             
+             helpText(
+               "Refer to Tutorial tab for file format instructions."
+             ),
+             
+             tags$hr(),
+             
+             checkboxInput("metaDataHetero", label = "Include meta-data in the plots (Optional)", value = FALSE),
+             
+             conditionalPanel(
+               condition = "input.metaDataHetero",
+               fileInput("userMetaFileHetero", strong("Upload your meta data file:"),
+                         multiple = F,
+                         accept = c(".xlsx")
+               ),
+               helpText(
+                 "Refer to Tutorial tab for file format instructions."
+               )
              ),
              
              tags$hr(),
@@ -62,11 +82,12 @@ tabPanel("Rank uniqueness",
                # ),
                
                tabPanel("Heatmap",
-                        fluidRow(column(4, sliderInput("nHeatmapHeteroUp", "Number of the unique ranks to be visualized for 1st group:",
-                                                       min = 0, max = 20, value = 5)),
-                                 column(4, sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
-                                             min = 0, max = 20, value = 5)),
-                                 column(4, checkboxInput("clustHeatmap", label = "Cluster the studies/columns", value = FALSE))),
+                        fluidRow(column(3, sliderInput("nHeatmapHeteroUp", "Number of the unique ranks to be visualized for 1st group:",
+                                                       min = 0, max = 50, value = 10)),
+                                 column(3, sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
+                                             min = 0, max = 50, value = 10)),
+                                 column(3, checkboxInput("clustHeatmapCol", label = "Cluster the studies/columns", value = TRUE)),
+                                 column(3, checkboxInput("clustHeatmapRow", label = "Cluster the genes/rows", value = TRUE))),
                         hr(),
                         uiOutput("heatmapHeteroUI"),
                         br(),
