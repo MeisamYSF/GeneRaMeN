@@ -1,8 +1,12 @@
 ################################################################################
-################## Gene-RaMeN server for rank uniqueness tab ###################
+################################################################################
+#########                                                             ##########
+#########         GeneRaMeN server function (rank uniqueness)         ##########
+#########                                                             ##########
+################################################################################
 ################################################################################
 
-### Reactive conductor to read the selected pre-loaded dataset from server
+### Reactive element to read the selected pre-loaded datasets
 dataInputHeteroPre <- reactive({
   screenList <- list()
   if(input$studyHetero == "None")
@@ -12,7 +16,7 @@ dataInputHeteroPre <- reactive({
   screenList <- readRDS(paste0("Data/PresetData/", tmpName))
 })
 
-### Reactive element to read the meta data for the pre-loaded dataset selected in the UI
+### Reactive element to read the meta data for the pre-loaded datasets - selected in the UI
 metaDataInputHeteroPre <- reactive({
   metaDataPre <- NULL
   if(input$studyHetero != "None") {
@@ -22,7 +26,7 @@ metaDataInputHeteroPre <- reactive({
   else return(metaDataPre)
 })
 
-### Reactive conductor to read the input excel file from the user
+### Reactive element to read the input data file from the user
 dataInputHeteroUser <- reactive({
   userFile <- input$userFileHetero
   # validate(need(tools::file_ext(userFile$datapath) == "xlsx", "Please upload an excel file"))
@@ -32,6 +36,7 @@ dataInputHeteroUser <- reactive({
     userFile$datapath %>% readxl::excel_sheets() %>% purrr::set_names() %>% map(read_excel, path = userFile$datapath)
 })
 
+### Reactive element to read the input meta-data file from the user (if needed), and combine it with the preset meta-data (if needed)
 annotateMetaDataHetero <- reactive({
   inputPre <- dataInputHeteroPre()
   inputUser <- dataInputHeteroUser()
@@ -52,9 +57,9 @@ annotateMetaDataHetero <- reactive({
       
       # if(dim(inputPreMeta) != dim(inputUserMeta)) stop("The uploaded meta data file is not compatible.")
       # if(dim(inputUser)[1] != dim(inputUserMeta)[1]) stop("The uploaded meta data file is not compatible.")
-      
       # validate(need(dim(inputPreMeta)[2] == dim(inputUserMeta)[2], "The uploaded meta data file is not compatible."))
       # validate(need(dim(inputUser)[1] == dim(inputUserMeta)[1], "The uploaded meta data file is not compatible."))
+      
       metaDataTable <- rbind(inputPreMeta, inputUserMeta)
     }
   }
@@ -62,7 +67,7 @@ annotateMetaDataHetero <- reactive({
     return(NULL)
 })
 
-### Reactive conductor to combine data from user and pre-loaded
+### Reactive element to combine data from user and pre-loaded
 dataHetero <- reactive({
   
   inputPre <- dataInputHeteroPre()
@@ -70,23 +75,26 @@ dataHetero <- reactive({
   screenList <- c(inputPre, inputUser)
 })
 
-### Data table output of all studies for overview
-
+### Data table output for overview of all studies (plus their meta-data if selected)
 output$studyListHetero <- DT::renderDT({
   
   screenList <- dataHetero()
   metaData <- annotateMetaDataHetero()
   
-  # Check for Null value
+  ### Check if user has uploaded data or selected a pre-loaded dataset
   if(length(screenList) == 0)
     return(NULL)
   else {
     
-    if (input$metaDataHetero) 
+    if (input$metaDataHetero)
+      
+      ### Output with meta-data
       overViewTable <- cbind(tibble("Study Number" = 1:length(screenList),
                                     "Study" = names(screenList)),
                              metaData[,-1])
     else
+      
+      # Output without meta-data
       overViewTable <- tibble("Study Number" = 1:length(screenList),
                               "Study" = names(screenList))
     
@@ -104,27 +112,9 @@ output$studyListHetero <- DT::renderDT({
                   )
     )
   }
-  
-  # # Check for Null value
-  # if(length(screenList) == 0)
-  #   return(NULL)
-  # else
-  #   DT::datatable(tibble("Study Number" = 1:length(screenList),
-  #                        "Study" = names(screenList)),
-  #                 rownames = F,
-  #
-  #                 options = list(
-  #                   # Aligning all columns text to center
-  #                   columnDefs = list(list(className = 'dt-center', targets = "_all")),
-  #                   # Customizing the top colnames row -- black color
-  #                   initComplete = JS(
-  #                     "function(settings, json) {",
-  #                     "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
-  #                     "}")
-  #                 )
-  #   )
 })
 
+### UI output for showing a list of study items to be selected by user for the rank uniqueness analysis
 output$contrastPanel <- renderUI({
   
   screenList <- dataHetero()
@@ -132,10 +122,6 @@ output$contrastPanel <- renderUI({
   validate(need(length(screenList) != 0, "Waiting to choose a dataset ..."))
   
   fluidPage(
-    br(),
-    numericInput(inputId = "nTopHetero",
-                 label = strong("Specify the number of top-hits to be considered from each ranked list:"),
-                 value = 5000),
     
     multiInput(
       inputId = "groupsHetero", label = strong("Please contrast the two groups:"),
@@ -145,74 +131,80 @@ output$contrastPanel <- renderUI({
     
     tags$hr(),
     
-    radioButtons("uniqueMethod", strong("Please select the algorithm you want to use for rank uniqueness identification:"),
+    radioButtons("uniqueMethod", strong("Select rank uniqueness identification method:"),
                  width = '100%',
-                 choices = c("Robust Rank Aggregation" = "RRA",
+                 choices = c("Student's T Test" = "TTest",
+                             "Robust Rank Aggregation" = "RRA",
                              "Geometric Mean" = "RP",
                              "Mean" = "RS"),
-                 selected = "RRA"),
+                 selected = "TTest"),
     
-    hr(),
-    
+    numericInput(inputId = "nTopHetero",
+                 label = strong("Specify the number of top-hits to be considered from each ranked list:"),
+                 value = 5000),
+    br(),
     actionButton("submitHetero", "Submit!", class = "btn-success")
   )
 })
 
-### Reactive conductor for cleaning/standardizing the screening data
+### Reactive element for data cleaning and standardizing the studies
 metaScreenHetero <- eventReactive(input$submitHetero, {
   
   screenList <- dataHetero()
   
+  ### to check if user only used the pre-loaded datasets so standardizing is not needed
   if(!is.null(input$userFileHetero)) {
     
     for(i in 1:length(screenList)) {
-      # To standardize the Gene name aliases based on official gene symbol
+      ### To standardize the Gene name aliases based on official gene symbol
       screenList[[i]][[1]] <- unlist(mapIds(org.Hs.eg.db, keys=screenList[[i]][[1]], column="SYMBOL", keytype="ALIAS", multiVals="first"))
-      # To add the gene rankings to gene names as a new variable
+      ### To add the gene rankings to gene names as a new variable
       screenList[[i]][[2]] <- 1:length(screenList[[i]][[1]])
-      # To remove all other columns except Gene name and ranks
+      ### To remove all other columns except Gene name and ranks
       screenList[[i]]<- tibble(screenList[[i]][,1:2])
-      # To remove gene names which could not be attributed to an official gene symbol
+      ### To remove gene names which could not be attributed to an official gene symbol
       screenList[[i]] <- na.omit(screenList[[i]])
-      # Renaming
+      ### Renaming
       colnames(screenList[[i]]) <- c("Gene", names(screenList[i]))
-      # To remove duplicate gene names if any from the datasets
+      ### To remove duplicate gene names if any from the datasets
       screenList[[i]] <- distinct(screenList[[i]], Gene, .keep_all= TRUE)
     }
   }
   screenList
 })
 
-### Reactive conductor to generate contrast class vector -- to be used by Rank Products
+### Reactive element to generate contrast class vector
 groupHet <- reactive({
   # screenList <- dataHetero()
   screenList <- metaScreenHetero()
   ifelse(names(screenList) %in% input$groupsHetero, 1, 0)
 })
 
+### Observer to automatically jump to the unique ranks tab after the user press "submit"
 observeEvent(input$submitHetero, {
-  updateTabsetPanel(session = session, inputId = "uniquePanel", selected = "Unique Ranks")
+  updateTabsetPanel(session = session, inputId = "uniquePanel", selected = "Unique ranks")
 })
 
-### Reactive conductor to calculate differential hits by Rank Products
+### Reactive element to calculate the unique markers upon submision
 rankUniqReact <- eventReactive(input$submitHetero, {
   
   screenList <- metaScreenHetero()
   screenClass <- groupHet()
   
-  # To add the gene rankings to gene names as a new variable
+  ### To add the gene rankings to gene names as a new variable
   for(i in 1:length(screenList)) {
     screenList[[i]][[2]] <- c(1:isolate(input$nTopHetero), rep(isolate(input$nTopHetero), length(screenList[[i]][[1]])-isolate(input$nTopHetero)))
   }
   
-  ### Calculation of the markers based on RRA, RP, or RS algorithms:
-  
+  ### To check if user has selected the contrast panel before submission
   if(sum(screenClass) == 0) stop("Please select at least one study for each group!")
   
   else {
     
+    ### If user has selected only one item in the group
     if(sum(screenClass) == 1) {
       
+      ### Calculation of the markers based on RRA
       if(input$uniqueMethod == "RRA") {
         
         tmpComb <- list()
@@ -231,15 +223,16 @@ rankUniqReact <- eventReactive(input$submitHetero, {
         screenDiff <- aggHits %>% 
           mutate(aggRank = if_else(aggRank < isolate(input$nTopHetero), as.integer(aggRank), isolate(input$nTopHetero))) %>%
           left_join(screenList[[which(screenClass == 1)]], by = "Gene") %>%
-          mutate(delta = !!as.name(names(screenList[[which(screenClass == 1)]])[2]) - aggRank) %>%
-          arrange(delta) %>% 
-          mutate(Rank = 1:length(delta)) %>%
+          mutate(EffectSize = aggRank - !!as.name(names(screenList[[which(screenClass == 1)]])[2])) %>%
+          arrange(desc(EffectSize)) %>% 
+          mutate(Rank = 1:length(EffectSize)) %>%
           na.omit() %>%
-          dplyr::select(Gene, Rank, delta)
+          dplyr::select(Rank, Gene, EffectSize)
       }
       
       else {
         
+        ### Calculation of the markers based on geometric mean
         if(input$uniqueMethod == "RP") {
           
           combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
@@ -248,21 +241,22 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           tmpComb <- tmpComb[screenClass != T]
           aggHits <- apply(tmpComb, 1, function(x) exp(mean(log(x), na.rm = TRUE)))
           
-          aggHits <- tibble(combinedHits$Gene, aggHits) %>% 
-            dplyr::arrange(aggHits) %>% 
+          aggHits <- tibble(combinedHits$Gene, aggHits) %>%
+            dplyr::arrange(aggHits) %>%
             mutate("Rank" = 1:length(aggHits))
           colnames(aggHits) <- c("Gene", "Score", "Rank1")
           
-          screenDiff <- aggHits %>% 
+          screenDiff <- aggHits %>%
             mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero))) %>%
             left_join(screenList[[which(screenClass == 1)]], by = "Gene") %>%
-            mutate(delta = !!as.name(names(screenList[[which(screenClass == 1)]])[2]) - Rank1) %>%
-            arrange(delta) %>% 
-            mutate(Rank = 1:length(delta)) %>%
+            mutate(EffectSize = Rank1 - !!as.name(names(screenList[[which(screenClass == 1)]])[2])) %>%
+            arrange(desc(EffectSize)) %>%
+            mutate(Rank = 1:length(EffectSize)) %>%
             na.omit() %>%
-            dplyr::select(Gene, Rank, delta)
+            dplyr::select(Rank, Gene, EffectSize)
         }
         
+        ### Calculation of the markers based on mean
         if(input$uniqueMethod == "RS") {
           
           combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
@@ -271,25 +265,49 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           tmpComb <- tmpComb[screenClass != T]
           aggHits <- apply(tmpComb, 1, mean, na.rm = TRUE)
           
-          aggHits <- tibble(combinedHits$Gene, aggHits) %>% 
-            dplyr::arrange(aggHits) %>% 
+          aggHits <- tibble(combinedHits$Gene, aggHits) %>%
+            dplyr::arrange(aggHits) %>%
             mutate("Rank" = 1:length(aggHits))
           colnames(aggHits) <- c("Gene", "Score", "Rank1")
           
-          screenDiff <- aggHits %>% 
+          screenDiff <- aggHits %>%
             mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero))) %>%
             left_join(screenList[[which(screenClass == 1)]], by = "Gene") %>%
-            mutate(delta = !!as.name(names(screenList[[which(screenClass == 1)]])[2]) - Rank1) %>%
-            arrange(delta) %>% 
-            mutate(Rank = 1:length(delta)) %>%
+            mutate(EffectSize = Rank1 - !!as.name(names(screenList[[which(screenClass == 1)]])[2])) %>%
+            arrange(desc(EffectSize)) %>%
+            mutate(Rank = 1:length(EffectSize)) %>%
             na.omit() %>%
-            dplyr::select(Gene, Rank, delta)
+            dplyr::select(Rank, EffectSize)
+        }
+        
+        if(input$uniqueMethod == "TTest") {
+          
+          combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
+          tmpComb <- combinedHits[,-1]
+          tmpComb <- (is.na(tmpComb))*floor(rowMeans(tmpComb, na.rm=TRUE))[row(tmpComb)] + replace(tmpComb, is.na(tmpComb), 0)
+          tmpComb1 <- tmpComb[screenClass != T] %>% as.matrix() %>% t()
+          tmpComb2 <- tmpComb[screenClass == T] %>% as.matrix() %>% t()
+          
+          tmpPval <- matrix(data = NA, nrow = dim(tmpComb)[1])
+          for (i in 1:dim(tmpComb)[1]) {
+            try({
+              tmpPval[i] <- unlist(t.test(tmpComb1[, i], tmpComb2[, i], var.equal = T, alternative = "greater")$p.value)
+            })
+          }
+          # tmpPval[is.na(tmpPval)] <- 1
+          effectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
+          screenDiff <- cbind(1:nrow(combinedHits),
+                              data.frame(combinedHits$Gene, EffectSize, tmpPval, p.adjust(tmpPval)) %>% arrange(desc(EffectSize)))
+          
+          colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
         }
       }
     }
     
+    ### If user has selected more than one item in the group
     if(sum(screenClass) > 1) {
       
+      ### Calculation of the markers based on RRA
       if(input$uniqueMethod == "RRA") {
         
         tmpComb <- list()
@@ -303,7 +321,7 @@ rankUniqReact <- eventReactive(input$submitHetero, {
         aggHits1 <- aggregateRanks(rmat = tmpRankMat1, method = "RRA")
         aggHits1 <- tibble(1:dim(aggHits1)[1], aggHits1)
         colnames(aggHits1) <- c("Rank1", "Gene", "Score")
-        aggHits1 <- aggHits1 %>% 
+        aggHits1 <- aggHits1 %>%
           mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero)))
         
         tmpComb2 <- tmpComb[screenClass == T]
@@ -312,20 +330,21 @@ rankUniqReact <- eventReactive(input$submitHetero, {
         aggHits2 <- aggregateRanks(rmat = tmpRankMat2, method = "RRA")
         aggHits2 <- tibble(1:dim(aggHits2)[1], aggHits2)
         colnames(aggHits2) <- c("Rank2", "Gene", "Score")
-        aggHits2 <- aggHits2 %>% 
+        aggHits2 <- aggHits2 %>%
           mutate(Rank2 = if_else(Rank2 < isolate(input$nTopHetero), as.integer(Rank2), isolate(input$nTopHetero)))
         
         screenDiff <- aggHits1 %>%
           left_join(aggHits2, by = "Gene") %>%
-          mutate(delta = Rank2 - Rank1) %>%
-          arrange(delta) %>% 
-          mutate(Rank = 1:length(delta)) %>%
+          mutate(EffectSize = Rank1 - Rank2) %>%
+          arrange(desc(EffectSize)) %>%
+          mutate(Rank = 1:length(EffectSize)) %>%
           na.omit() %>%
-          dplyr::select(Gene, Rank, delta)
+          dplyr::select(Rank, Gene, EffectSize)
       }
       
       else {
         
+        ### Calculation of the markers based on geometric mean
         if(input$uniqueMethod == "RP") {
           
           combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
@@ -334,30 +353,31 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           
           tmpComb1 <- tmpComb[screenClass != T]
           aggHits1 <- apply(tmpComb1, 1, function(x) exp(mean(log(x), na.rm = TRUE)))
-          aggHits1 <- tibble(combinedHits$Gene, aggHits1) %>% 
-            dplyr::arrange(aggHits1) %>% 
+          aggHits1 <- tibble(combinedHits$Gene, aggHits1) %>%
+            dplyr::arrange(aggHits1) %>%
             mutate("Rank" = 1:length(aggHits1))
           colnames(aggHits1) <- c("Gene", "Score", "Rank1")
           
           tmpComb2 <- tmpComb[screenClass == T]
           aggHits2 <- apply(tmpComb2, 1, function(x) exp(mean(log(x), na.rm = TRUE)))
-          aggHits2 <- tibble(combinedHits$Gene, aggHits2) %>% 
-            dplyr::arrange(aggHits2) %>% 
+          aggHits2 <- tibble(combinedHits$Gene, aggHits2) %>%
+            dplyr::arrange(aggHits2) %>%
             mutate("Rank" = 1:length(aggHits2))
           colnames(aggHits2) <- c("Gene", "Score", "Rank2")
           
-          screenDiff <- aggHits1 %>% 
+          screenDiff <- aggHits1 %>%
             mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero))) %>%
             left_join(aggHits2 %>%
                         mutate(Rank2 = if_else(Rank2 < isolate(input$nTopHetero), as.integer(Rank2), isolate(input$nTopHetero))), by = "Gene") %>%
             # left_join(aggHits2) %>%
-            mutate(delta = Rank2 - Rank1) %>%
-            arrange(delta) %>% 
-            mutate(Rank = 1:length(delta)) %>%
+            mutate(EffectSize = Rank1 - Rank2) %>%
+            arrange(desc(EffectSize)) %>%
+            mutate(Rank = 1:length(EffectSize)) %>%
             na.omit() %>%
-            dplyr::select(Gene, Rank, delta)
+            dplyr::select(Rank, Gene, EffectSize)
         }
         
+        ### Calculation of the markers based on mean
         if(input$uniqueMethod == "RS") {
           
           combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
@@ -366,28 +386,57 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           
           tmpComb1 <- tmpComb[screenClass != T]
           aggHits1 <- apply(tmpComb1, 1, mean, na.rm = TRUE)
-          aggHits1 <- tibble(combinedHits$Gene, aggHits1) %>% 
-            dplyr::arrange(aggHits1) %>% 
+          aggHits1 <- tibble(combinedHits$Gene, aggHits1) %>%
+            dplyr::arrange(aggHits1) %>%
             mutate("Rank" = 1:length(aggHits1))
           colnames(aggHits1) <- c("Gene", "Score", "Rank1")
           
           tmpComb2 <- tmpComb[screenClass == T]
           aggHits2 <- apply(tmpComb2, 1, mean, na.rm = TRUE)
-          aggHits2 <- tibble(combinedHits$Gene, aggHits2) %>% 
-            dplyr::arrange(aggHits2) %>% 
+          aggHits2 <- tibble(combinedHits$Gene, aggHits2) %>%
+            dplyr::arrange(aggHits2) %>%
             mutate("Rank" = 1:length(aggHits2))
           colnames(aggHits2) <- c("Gene", "Score", "Rank2")
           
-          screenDiff <- aggHits1 %>% 
+          screenDiff <- aggHits1 %>%
             mutate(Rank1 = if_else(Rank1 < isolate(input$nTopHetero), as.integer(Rank1), isolate(input$nTopHetero))) %>%
             left_join(aggHits2 %>%
                         mutate(Rank2 = if_else(Rank2 < isolate(input$nTopHetero), as.integer(Rank2), isolate(input$nTopHetero))), by = "Gene") %>%
             # left_join(aggHits2) %>%
-            mutate(delta = Rank2 - Rank1) %>%
-            arrange(delta) %>% 
-            mutate(Rank = 1:length(delta)) %>%
+            mutate(EffectSize = Rank1 - Rank2) %>%
+            arrange(desc(EffectSize)) %>%
+            mutate(Rank = 1:length(EffectSize)) %>%
             na.omit() %>%
-            dplyr::select(Gene, Rank, delta)
+            dplyr::select(Rank, Gene, EffectSize)
+        }
+        
+        ### Calculation of the markers based on RRA
+        if(input$uniqueMethod == "TTest") {
+          
+          combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
+          tmpComb <- combinedHits[,-1]
+          tmpComb <- (is.na(tmpComb))*floor(rowMeans(tmpComb, na.rm=TRUE))[row(tmpComb)] + replace(tmpComb, is.na(tmpComb), 0)
+          tmpComb1 <- tmpComb[screenClass != T] %>% as.matrix() %>% t()
+          tmpComb2 <- tmpComb[screenClass == T] %>% as.matrix() %>% t()
+          
+          tTestObj <- ttestsModified(tmpComb1, tmpComb2, alternative = "greater")
+          EffectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
+          
+          # tmpPval <- matrix(data = NA, nrow = dim(tmpComb)[1])
+          # for (i in 1:dim(tmpComb)[1]) {
+          #   try({
+          #     tmpPval[i] <- unlist(t.test(tmpComb1[, i], tmpComb2[, i], var.equal = T, alternative = "greater")$p.value)
+          #   })
+          # }
+          
+          # screenDiff <- data.frame(combinedHits$Gene, effectSize, data.frame(tTestObj)$pvalue) %>% arrange(desc(effectSize))
+          
+          
+          screenDiff <- cbind(1:nrow(combinedHits),
+                              data.frame(combinedHits$Gene, EffectSize, data.frame(tTestObj)$pvalue, p.adjust(data.frame(tTestObj)$pvalue)) %>%
+                                arrange(desc(EffectSize)))
+          
+          colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
         }
       }
     }
@@ -397,43 +446,7 @@ rankUniqReact <- eventReactive(input$submitHetero, {
   
 })
 
-# # Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies
-# combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
-# # RP
-# screenRP <- RankProducts(as.matrix(combinedHits[,-1]), cl = screenClass, rand = 123, na.rm = T, logged = F)
-# 
-# pfp <- as.matrix(screenRP$pfp)
-# rank <- as.matrix(screenRP$RPrank)
-# 
-# screenDiff <- tibble(combinedHits$Gene, rank[,1], pfp[,1], rank[,2], pfp[,2])
-# colnames(screenDiff) <- c("Gene", "Rank for marking 2nd group", "PFP for marking 2nd group", "Rank for marking 1st group", "PFP for marking 1st group")
-# screenDiff 
-
-# rankProdUp <- reactive({
-#   screenDiff <- rankProdReact()
-#   screenDiff <- screenDiff %>%
-#     dplyr::arrange(Markers1) %>%
-#     dplyr::select(Markers1, Gene) %>%
-#     dplyr::rename("Rank for 1st group uniqueness" = Markers1)
-# })
-
-# rankProdDown <- reactive({
-#   screenDiff <- rankProdReact()
-#   screenDiff <- screenDiff %>%
-#     dplyr::arrange(Markers2) %>%
-#     dplyr::select(Markers2, Gene) %>%
-#     dplyr::rename("Rank for uniqueness" = Markers2)
-# })
-
-# x <- reactive({
-#   screenDiff <- rankUniqReact()
-#   rng <- dim(screenDiff)[1] - 1
-#   screenDiff %>% mutate(pval = ifelse(delta >= 0, 
-#                                       EnvStats::ptri(delta, min = -rng, max = rng, mode = 0),
-#                                       EnvStats::ptri(-delta, min = -rng, max = rng, mode = 0)))
-# })
-
-
+### Data table output for viewing the marker genes
 output$tableHetero <- renderDT({
   
   tmpTable <- rankUniqReact()
@@ -442,9 +455,9 @@ output$tableHetero <- renderDT({
             rownames = F,
             
             options = list(
-              # Aligning all columns text to center
+              ### Aligning all columns text to center
               columnDefs = list(list(className = 'dt-center', targets = "_all")),
-              # Customizing the top colnames row -- black color
+              ### Customizing the top colnames row -- black color
               initComplete = JS(
                 "function(settings, json) {",
                 "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
@@ -453,30 +466,11 @@ output$tableHetero <- renderDT({
   )
 })
 
-# output$tableHeteroDown <- renderDT({
-#   tmpTable <- rankProdDown()
-#   
-#   datatable(tmpTable,
-#             
-#             rownames = F,
-#             
-#             options = list(
-#               # Aligning all columns text to center
-#               columnDefs = list(list(className = 'dt-center', targets = "_all")),
-#               # Customizing the top colnames row -- black color
-#               initComplete = JS(
-#                 "function(settings, json) {",
-#                 "$(this.api().table().header()).css({'background-color': '#000', 'color': '#fff'});",
-#                 "}")
-#             )
-#   )
-# })
-
-### Download handler for the marker ranks population table 1
+### Download handler for the marker genes list
 output$downloadTable <- downloadHandler(
   
   filename = function() {
-    paste0(Sys.Date(), "-geneRaMeN.csv")
+    paste0(Sys.Date(), "-RankUniqueness-GeneRaMeN.csv")
   }, 
   content = function(file) {
     
@@ -486,92 +480,55 @@ output$downloadTable <- downloadHandler(
   }                                     
 )
 
-### Download handler for the marker ranks population table 2
-# output$downloadTableDown <- downloadHandler(
-#   
-#   filename = function() {
-#     paste0(Sys.Date(), "-geneRaMeN.csv")
-#   }, 
-#   content = function(file) {
-#     
-#     tmpTable <- rankProdDown()
-#     
-#     write.csv(tmpTable, file, row.names = F)
-#   }                                     
-# )
-
-### Scatterplots
-
-# output$plotlyUp <- renderPlotly({
-#   
-#   plotlyObj <- rankProdReact() 
-#   plotlyObj <- plotlyObj %>%
-#     dplyr::arrange(`Rank for marking 2nd group`) %>%
-#     slice_head(n = input$nTopHetero)
-#   
-#   plot_ly(
-#     data = plotlyObj,
-#     x = ~`Rank for marking 2nd group`,
-#     y = ~`PFP for marking 2nd group`,
-#     type = "scatter",
-#     mode = "markers",
-#     opacity = 0.5,
-#     marker = list(color = "darkblue", size = 8),
-#     hovertext = ~ paste0(Gene, "<br>PFP Score: ", round(`PFP for marking 2nd group`, digits = 3)),
-#     hoverinfo = "text"
-#   )
-# })
-# 
-# output$plotlyDown <- renderPlotly({
-#   
-#   plotlyObj <- rankProdReact() 
-#   plotlyObj <- plotlyObj %>%
-#     dplyr::arrange(`Rank for marking 1st group`) %>%
-#     slice_head(n = input$nTopHetero)
-#   
-#   plot_ly(
-#     data = plotlyObj,
-#     x = ~`Rank for marking 1st group`,
-#     y = ~`PFP for marking 1st group`,
-#     type = "scatter",
-#     mode = "markers",
-#     opacity = 0.5,
-#     marker = list(color = "red", size = 8),
-#     hovertext = ~ paste0(Gene, "<br>PFP Score: ", round(`PFP for marking 1st group`, digits = 3)),
-#     hoverinfo = "text"
-#   )
-# })
-
-
-### Heatmap presentation of ranks of all top genes plus clustering
+### Reactive element for heatmap presentation of ranks of top amrker genes
 heatmapHeteroReact <- reactive({
   
   screenList <- metaScreenHetero()
   screenClass <- groupHet()
   metaData <- annotateMetaDataHetero()
   
-  # To add the gene rankings to gene names as a new variable
+  ### To add the gene rankings to gene names as a new variable
   for(i in 1:length(screenList)) {
     screenList[[i]][[2]] <- c(1:isolate(input$nTopHetero), rep(isolate(input$nTopHetero), length(screenList[[i]][[1]])-isolate(input$nTopHetero)))
   }
   
-  markers1 <- rankUniqReact() %>% 
-    slice_head(n = input$nHeatmapHeteroUp) %>% 
-    dplyr::select(Gene) %>% 
-    unlist()
+  if(input$uniqueMethod == "TTest") {
+    ### Gene markers of first group
+    markers1 <- rankUniqReact() %>% 
+      filter(pValue < input$pval) %>%
+      slice_head(n = input$nHeatmapHeteroUp) %>% 
+      dplyr::select(Gene) %>% 
+      unlist()
+    
+    ### Gene markers of second group
+    markers2 <- rankUniqReact() %>% 
+      filter(pValue > 1 - input$pval) %>%
+      slice_tail(n = input$nHeatmapHeteroDown) %>% 
+      dplyr::select(Gene) %>% 
+      unlist()
+  }
+  else {
+    ### Gene markers of first group
+    markers1 <- rankUniqReact() %>%
+      slice_head(n = input$nHeatmapHeteroUp) %>% 
+      dplyr::select(Gene) %>% 
+      unlist()
+    
+    ### Gene markers of second group
+    markers2 <- rankUniqReact() %>%
+      slice_tail(n = input$nHeatmapHeteroDown) %>% 
+      dplyr::select(Gene) %>% 
+      unlist()
+  }
   
-  markers2 <- rankUniqReact() %>% 
-    slice_tail(n = input$nHeatmapHeteroDown) %>% 
-    dplyr::select(Gene) %>% 
-    unlist()
-  
-  # Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies
+  ### Merging all datasets into a single dataframe which shows a given gene ranks in each of the studies -- to be used by pheatmap
   combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
   combinedHits <- combinedHits %>% 
     filter(Gene %in% c(markers1, markers2)) %>%
     data.frame()
   rownames(combinedHits) <- combinedHits$Gene
   
+  ### Adding meta-data to the annotation (if selected)
   if (input$metaDataHetero) {
     annoteDf <- cbind(metaData[,-1], data.frame(Group = factor(screenClass)))
     rownames(annoteDf) <- colnames(combinedHits[-1])
@@ -599,8 +556,8 @@ heatmapHeteroReact <- reactive({
                         color = colorRampPalette(c("#66b2ff","black"))(200)
                         # display_numbers = TRUE
     )
-    }
-
+  }
+  
   plotObj$heatmapHetero <- tmpPlot
   tmpPlot
 })
@@ -608,15 +565,18 @@ heatmapHeteroReact <- reactive({
 ### Heatmap output visualization
 output$heatmapHetero <- renderPlot(heatmapHeteroReact())
 
+### Reactive element to dynamically change the size of the heatmap based on numbers of heats selected to be shown
 plotHeightHetero <- reactive(200 + (20*(input$nHeatmapHeteroUp+input$nHeatmapHeteroDown)))
+
+### UI output for the heatmap to show top markers of each group
 output$heatmapHeteroUI <- renderUI({
   plotOutput("heatmapHetero", height = plotHeightHetero()) %>% withSpinner(type = getOption("spinner.type", default = 4))
 })
 
-### Download handlers for the heatmap
+### Download handler for the heatmap -- PDF
 output$heatmapHeteroPDF <- downloadHandler(
   filename = function() {
-    paste0(Sys.Date(), "-geneRaMeN.pdf")
+    paste0(Sys.Date(), "-RankUniqueness-GeneRaMeN.pdf")
   },
   content = function(file){
     pdf(file, width=input$wHeatmapHetero, height=input$hHeatmapHetero)
@@ -624,9 +584,11 @@ output$heatmapHeteroPDF <- downloadHandler(
     dev.off()
   }
 )
+
+### Download handler for the heatmap -- PNG
 output$heatmapHeteroPNG <- downloadHandler(
   filename = function() {
-    paste0(Sys.Date(), "-geneRaMeN.png")
+    paste0(Sys.Date(), "-RankUniqueness-GeneRaMeN.png")
   },
   content = function(file){
     png(file, width=input$wHeatmapHetero, height=input$hHeatmapHetero, units="in", res=input$ppiHeatmapHetero)
@@ -634,9 +596,11 @@ output$heatmapHeteroPNG <- downloadHandler(
     dev.off()
   }
 )
+
+### Download handler for the heatmap -- TIFF
 output$heatmapHeteroTIFF <- downloadHandler(
   filename = function() {
-    paste0(Sys.Date(), "-geneRaMeN.tiff")
+    paste0(Sys.Date(), "-RankUniqueness-GeneRaMeN.tiff")
   },
   content = function(file){
     tiff(file, width=input$wHeatmapHetero, height=input$hHeatmapHetero, units="in", res=input$ppiHeatmapHetero)

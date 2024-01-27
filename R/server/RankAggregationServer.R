@@ -1,8 +1,12 @@
 ################################################################################
-################## GeneRaMeN server for rank aggregation tab ###################
+################################################################################
+#########                                                             ##########
+#########         GeneRaMeN server function (rank aggregation)        ##########
+#########                                                             ##########
+################################################################################
 ################################################################################
 
-### Reactive element to read the pre-loaded dataset selected in the UI
+### Reactive element to read the pre-loaded datasets
 dataInputPre <- reactive({
   screenList <- list()
   if(input$study == "None")
@@ -12,7 +16,7 @@ dataInputPre <- reactive({
   screenList <- readRDS(paste0("Data/PresetData/", tmpName))
 })
 
-### Reactive element to read the meta data for the pre-loaded dataset selected in the UI
+### Reactive element to read the meta data for the pre-loaded datasets - selected in the UI
 metaDataInputPre <- reactive({
   metaDataPre <- NULL
   if(input$study == "None")
@@ -22,7 +26,7 @@ metaDataInputPre <- reactive({
   inputPreMeta <- read_excel(paste0("Data/PresetMetaData/", tmpName))
 })
 
-### Reactive element to read the input excel file from the user
+### Reactive element to read the input data file from the user
 dataInputUser <- reactive({
   userFile <- input$userFile
   # validate(need(tools::file_ext(userFile$datapath) == "xlsx", "Please upload an excel file"))
@@ -32,6 +36,7 @@ dataInputUser <- reactive({
     userFile$datapath %>% readxl::excel_sheets() %>% purrr::set_names() %>% map(read_excel, path = userFile$datapath)
 })
 
+### Reactive element to read the input meta-data file from the user (if needed), and combine it with the preset meta-data (if needed)
 annotateMetaData <- reactive({
   inputPre <- dataInputPre()
   inputUser <- dataInputUser()
@@ -52,9 +57,9 @@ annotateMetaData <- reactive({
       
       # if(dim(inputPreMeta) != dim(inputUserMeta)) stop("The uploaded meta data file is not compatible.")
       # if(dim(inputUser)[1] != dim(inputUserMeta)[1]) stop("The uploaded meta data file is not compatible.")
-      
       # validate(need(dim(inputPreMeta)[2] == dim(inputUserMeta)[2], "The uploaded meta data file is not compatible."))
       # validate(need(dim(inputUser)[1] == dim(inputUserMeta)[1], "The uploaded meta data file is not compatible."))
+      
       metaDataTable <- rbind(inputPreMeta, inputUserMeta)
     }
   }
@@ -62,7 +67,7 @@ annotateMetaData <- reactive({
     return(NULL)
 })
 
-### Data table output of all studies + adding optional meta data to the table. For Overview tabset
+### Data table output for overview of all studies (plus their meta-data if selected)
 output$studyList <- DT::renderDT({
   
   inputPre <- dataInputPre()
@@ -70,17 +75,20 @@ output$studyList <- DT::renderDT({
   screenList <- c(inputPre, inputUser)
   metaDataTable <- annotateMetaData()
   
-  # Check for Null value
+  ### Check if user has uploaded data or selected a pre-loaded dataset
   if(length(screenList) == 0)
     return(NULL)
   else {
     
+    ### Output with meta-data
     if (input$metaData) {
       overViewTable <- cbind(tibble("Study Number" = 1:length(screenList),
                                     "Study" = names(screenList)),
                              metaDataTable[,-1])
     }
     else
+      
+      ### Output without meta-data
       overViewTable <- tibble("Study Number" = 1:length(screenList),
                               "Study" = names(screenList))
     

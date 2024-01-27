@@ -1,5 +1,9 @@
 ################################################################################
-################### Gene-RaMeN ui for rank aggregation tab #####################
+################################################################################
+#########                                                             ##########
+#########            GeneRaMeN UI for rank aggregation tab            ##########
+#########                                                             ##########
+################################################################################
 ################################################################################
 
 tabPanel("Rank aggregation",
@@ -7,17 +11,18 @@ tabPanel("Rank aggregation",
            
            sidebarPanel(
              
-             radioButtons("study", strong("Please select which dataset you want to use:"),
+             radioButtons("study", strong("Select a pre-loaded dataset:"),
                           width = '100%',
                           choices = c("None" = "None",
-                                      "SARS-CoV-2 screens" = "SARS2_v3",
-                                      "Flavivirus screens" = "Flavi_v3",
-                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v1",
-                                      "Picornavirus screens" = "Picorna_v3"),
+                                      "SARS-CoV-2 screens" = "SARS2_v4",
+                                      "Flavivirus screens" = "Flavi_v4",
+                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v2"
+                                      # "Picornavirus screens" = "Picorna_v4"
+                                      ),
                           selected = "None"),
              
              helpText(
-               "Select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
+               "Select 'None' if you don't want to append your file to these pre-loaded datasets"
              ),
              
              tags$hr(),
@@ -26,14 +31,13 @@ tabPanel("Rank aggregation",
                        multiple = F,
                        accept = c(".xlsx")
              ),
-             
              helpText(
-               "Refer to Tutorial tab for file format instructions."
+               "For file format instruction refer to the 'Tutorial' tab"
              ),
              
              tags$hr(),
              
-             checkboxInput("metaData", label = "Include meta-data in the plots (Optional)", value = FALSE),
+             checkboxInput("metaData", label = "I want to include meta-data (Optional)", value = FALSE),
              
              conditionalPanel(
                condition = "input.metaData",
@@ -42,13 +46,13 @@ tabPanel("Rank aggregation",
                          accept = c(".xlsx")
                ),
                helpText(
-                 "Refer to Tutorial tab for file format instructions."
+                 "Note that meta-data files for pre-selected datasets are already included in the app. For file format instruction refer to the 'Tutorial' tab"
                )
              ),
              
              tags$hr(),
              
-             radioButtons("aggMethod", strong("Please select the rank aggregation algorithm:"),
+             radioButtons("aggMethod", strong("Select rank aggregation method:"),
                           width = '100%',
                           choices = c("Robust Rank Aggregation" = "RRA",
                                       # "Bayesian Iterative Robust Rank Aggregation (BIRRA)" = "BIRRA",
@@ -69,7 +73,7 @@ tabPanel("Rank aggregation",
                
                id = "aggregationPanel",
                
-               tabPanel("Input Overview",
+               tabPanel("Input overview",
                         DT::DTOutput("studyList", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))
                ),
                
@@ -122,7 +126,7 @@ tabPanel("Rank aggregation",
                         )
                ),
                
-               tabPanel("Gene Rank Finder", DT::DTOutput("rankFinder", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
+               tabPanel("Gene rank finder", DT::DTOutput("rankFinder", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))),
                
                tabPanel("Heatmap",
                         sliderInput("nHeatmap", "Number of the top hits:",
@@ -169,7 +173,7 @@ tabPanel("Rank aggregation",
                         )
                ),
                
-               tabPanel("Enrichment Analysis",
+               tabPanel("Enrichment analysis",
                         
                         fluidRow(column(3, numericInput("nEnrich", label = "Number of top hits:", value = 100)),
                                  column(3, selectInput("enrichDB", label = "Query database:", 

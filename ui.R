@@ -6,7 +6,7 @@ ui <-
   fluidPage(
     navbarPage(
       
-      strong("GeneRaMeN \u03b2 v0.6.5"),
+      strong("GeneRaMeN \u03b2 v1.0.0"), #2024-01-16
 
       theme = bs_theme(version = 4, bootswatch ="cosmo"),
       

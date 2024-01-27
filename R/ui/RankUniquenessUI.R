@@ -1,5 +1,9 @@
 ################################################################################
-##################### GeneRaMeN UI for rank uniqueness tab #####################
+################################################################################
+#########                                                             ##########
+#########            GeneRaMeN UI for rank uniqueness tab             ##########
+#########                                                             ##########
+################################################################################
 ################################################################################
 
 tabPanel("Rank uniqueness",
@@ -7,17 +11,18 @@ tabPanel("Rank uniqueness",
            
            sidebarPanel(
              
-             radioButtons("studyHetero", strong("Please select which dataset you want to use:"),
+             radioButtons("studyHetero", strong("Select a pre-loaded dataset:"),
                           width = '100%',
                           choices = c("None" = "None",
-                                      "SARS-CoV-2 screens" = "SARS2_v3",
-                                      "Flavivirus screens" = "Flavi_v3",
-                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v1",
-                                      "Picornavirus screens" = "Picorna_v3"),
+                                      "SARS-CoV-2 screens" = "SARS2_v4",
+                                      "Flavivirus screens" = "Flavi_v4",
+                                      "Seasonal Coronavirus screens" = "SeasonalCorona_v2"
+                                      # "Picornavirus screens" = "Picorna_v4"
+                                      ),
                           selected = "None"),
              
              helpText(
-               "Select 'None' if you don't want to append your lists to any of these pre-loaded datasets"
+               "Select 'None' if you don't want to append your file to these pre-loaded datasets"
              ),
              
              tags$hr(),
@@ -28,12 +33,12 @@ tabPanel("Rank uniqueness",
              ),
              
              helpText(
-               "Refer to Tutorial tab for file format instructions."
+               "For file format instruction refer to the 'Tutorial' tab"
              ),
              
              tags$hr(),
              
-             checkboxInput("metaDataHetero", label = "Include meta-data in the plots (Optional)", value = FALSE),
+             checkboxInput("metaDataHetero", label = "I want to include meta-data (Optional)", value = FALSE),
              
              conditionalPanel(
                condition = "input.metaDataHetero",
@@ -42,7 +47,7 @@ tabPanel("Rank uniqueness",
                          accept = c(".xlsx")
                ),
                helpText(
-                 "Refer to Tutorial tab for file format instructions."
+                 "Note that meta-data files for pre-selected datasets are already included in the app. For file format instruction refer to the 'Tutorial' tab"
                )
              ),
              
@@ -58,12 +63,12 @@ tabPanel("Rank uniqueness",
                
                id = "uniquePanel",
                
-               tabPanel("Input Overview",
+               tabPanel("Input overview",
                         
                         DT::DTOutput("studyListHetero", "100%") %>% withSpinner(type = getOption("spinner.type", default = 4))
                ),
                
-               tabPanel("Unique Ranks",
+               tabPanel("Unique ranks",
                         
                         fluidRow(
                           column(width = 12, p(class = 'text-center', downloadButton('downloadTable', 'Download table!'))),
@@ -86,8 +91,10 @@ tabPanel("Rank uniqueness",
                                                        min = 0, max = 50, value = 10)),
                                  column(3, sliderInput("nHeatmapHeteroDown", "Number of the unique ranks to be visualized for 2nd group:",
                                              min = 0, max = 50, value = 10)),
-                                 column(3, checkboxInput("clustHeatmapCol", label = "Cluster the studies/columns", value = TRUE)),
-                                 column(3, checkboxInput("clustHeatmapRow", label = "Cluster the genes/rows", value = TRUE))),
+                                 column(2, checkboxInput("clustHeatmapCol", label = "Cluster the studies/columns", value = TRUE)),
+                                 column(2, checkboxInput("clustHeatmapRow", label = "Cluster the genes/rows", value = TRUE)),
+                                 column(2, numericInput("pval", label = "P-value cutoff", value = 0.05, min = 0, max = 1, step = NA))
+                                 ),
                         hr(),
                         uiOutput("heatmapHeteroUI"),
                         br(),
