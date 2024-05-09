@@ -6,7 +6,7 @@ ui <-
   fluidPage(
     navbarPage(
       
-      strong("GeneRaMeN \u03b2 v1.0.0"), #2024-01-16
+      strong("GeneRaMeN \u03b2 v1.1.0"), #2024-03-21
 
       theme = bs_theme(version = 4, bootswatch ="cosmo"),
       
@@ -15,6 +15,9 @@ ui <-
       
       # Loading the ui for rank uniqueness tab
       source('R/ui/RankUniquenessUI.R', local = TRUE)$value,
+      
+      # Loading the ui for rank correlation tab
+      source('R/ui/RankCorrelationUI.R', local = TRUE)$value,
       
       # Loading the ui for tutorial tab
       source('R/ui/TutorialsUI.R', local = TRUE)$value,

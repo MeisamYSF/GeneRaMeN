@@ -98,6 +98,7 @@ output$studyList <- DT::renderDT({
                   options = list(
                     # Aligning all columns text to center
                     columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                    
                     # Customizing the top colnames row -- black color
                     initComplete = JS(
                       "function(settings, json) {",
@@ -194,10 +195,12 @@ output$RRA <- DT::renderDT({
   aggHits$ENTREZ <- mapIds(org.Hs.eg.db, keys=aggHits$Gene, column="ENTREZID", keytype="SYMBOL", multiVals="first")
   
   datatable(aggHits %>%
-              mutate("Links" = paste0("<a href='https://orcs.thebiogrid.org/Gene/", ENTREZ, "'>BioGRID</a> - ",
-                                      "<a href='https://www.ncbi.nlm.nih.gov/gene/", ENTREZ, "'>NCBI</a> - ",
-                                      "<a href='https://www.genecards.org/cgi-bin/carddisp.pl?gene=", Gene, "'>GeneCards</a> - ",
-                                      "<a href='https://www.dgidb.org/genes/", Gene, "#_interactions'>DGIdb</a>")) %>%
+              mutate("Links" = paste0("<a href='https://orcs.thebiogrid.org/Gene/", ENTREZ, "' target='_blank'>BioGRID</a> - ",
+                                      "<a href='https://www.ncbi.nlm.nih.gov/gene/", ENTREZ, "' target='_blank'>NCBI</a> - ",
+                                      "<a href='https://www.genecards.org/cgi-bin/carddisp.pl?gene=", Gene, "' target='_blank'>GeneCards</a> - "
+                                      # "<a href='https://www.dgidb.org/genes/", Gene, "#_interactions'  target='_blank'>DGIdb</a>"
+                                      )
+                     ) %>%
               dplyr::select(-ENTREZ),
             
             rownames = F,
@@ -352,7 +355,6 @@ heatmapReact <- reactive({
     tmpNames <- unlist(annoteDf[, 1])
     annoteDf <- data.frame(annoteDf[, -1])
     rownames(annoteDf) <- colnames(combinedHits)
-    c
     
     tmpPlot <- pheatmap(combinedHits,
                         cluster_rows = F,

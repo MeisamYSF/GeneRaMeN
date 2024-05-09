@@ -23,4 +23,7 @@ server <- function(input, output, session) {
   
   ### Loading the server for rank uniqueness tab
   source('R/server/RankUniquenessServer.R', local = TRUE)$value
+  
+  ### Loading the server for rank uniqueness tab
+  source('R/server/RankCorrelationServer.R', local = TRUE)$value
 }

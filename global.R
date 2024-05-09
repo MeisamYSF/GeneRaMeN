@@ -31,6 +31,8 @@ library(gprofiler2);
 # library(foreach);
 # library(doParallel);
 library(Rfast);
+library(WGCNA);
+library(plotly);
 
 ################################################################################
 ######## Student's T test function, modified from Rfast::ttests package ########

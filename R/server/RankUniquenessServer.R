@@ -140,7 +140,7 @@ output$contrastPanel <- renderUI({
                  selected = "TTest"),
     
     numericInput(inputId = "nTopHetero",
-                 label = strong("Specify the number of top-hits to be considered from each ranked list:"),
+                 label = strong("Specify the maximum rank threshold:"),
                  value = 5000),
     br(),
     actionButton("submitHetero", "Submit!", class = "btn-success")
