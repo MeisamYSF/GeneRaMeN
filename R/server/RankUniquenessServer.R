@@ -129,6 +129,9 @@ output$contrastPanel <- renderUI({
       selected = NULL
     ),
     
+    # helpText(
+    #   "Please select at least two studies for each comparison group.",
+    # ),
     tags$hr(),
     
     radioButtons("uniqueMethod", strong("Select rank uniqueness identification method:"),
@@ -191,16 +194,13 @@ rankUniqReact <- eventReactive(input$submitHetero, {
   screenList <- metaScreenHetero()
   screenClass <- groupHet()
   
+  ### To check if user has selected the contrast panel before submission
+  if(sum(screenClass) == 0) stop(shiny::safeError("Please select at least one study for each group!"))
+  
   ### To add the gene rankings to gene names as a new variable
   for(i in 1:length(screenList)) {
     screenList[[i]][[2]] <- c(1:isolate(input$nTopHetero), rep(isolate(input$nTopHetero), length(screenList[[i]][[1]])-isolate(input$nTopHetero)))
   }
-  
-  ### To check if user has selected the contrast panel before submission
-  if(sum(screenClass) == 0) stop("Please select at least one study for each group!")
-  
-  else {
-    
     ### If user has selected only one item in the group
     if(sum(screenClass) == 1) {
       
@@ -282,24 +282,27 @@ rankUniqReact <- eventReactive(input$submitHetero, {
         
         if(input$uniqueMethod == "TTest") {
           
-          combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
-          tmpComb <- combinedHits[,-1]
-          tmpComb <- (is.na(tmpComb))*floor(rowMeans(tmpComb, na.rm=TRUE))[row(tmpComb)] + replace(tmpComb, is.na(tmpComb), 0)
-          tmpComb1 <- tmpComb[screenClass != T] %>% as.matrix() %>% t()
-          tmpComb2 <- tmpComb[screenClass == T] %>% as.matrix() %>% t()
+          ### To check if user has selected the contrast panel before submission
+          if(sum(screenClass) == 1) stop(shiny::safeError("T-test requires more than one sample (study) per group. If you are interested to compare the rankings of only one study versus the rest, please select another rank uniqueness method -- performing parallel rank aggregations for the two groups and then contrasting them to find unique hits."))
           
-          tmpPval <- matrix(data = NA, nrow = dim(tmpComb)[1])
-          for (i in 1:dim(tmpComb)[1]) {
-            try({
-              tmpPval[i] <- unlist(t.test(tmpComb1[, i], tmpComb2[, i], var.equal = T, alternative = "greater")$p.value)
-            })
-          }
-          # tmpPval[is.na(tmpPval)] <- 1
-          effectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
-          screenDiff <- cbind(1:nrow(combinedHits),
-                              data.frame(combinedHits$Gene, EffectSize, tmpPval, p.adjust(tmpPval)) %>% arrange(desc(EffectSize)))
-          
-          colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
+          # combinedHits <- screenList %>% purrr::reduce(full_join, by = "Gene")
+          # tmpComb <- combinedHits[,-1]
+          # tmpComb <- (is.na(tmpComb))*floor(rowMeans(tmpComb, na.rm=TRUE))[row(tmpComb)] + replace(tmpComb, is.na(tmpComb), 0)
+          # tmpComb1 <- tmpComb[screenClass != T] %>% as.matrix() %>% t()
+          # tmpComb2 <- tmpComb[screenClass == T] %>% as.matrix() %>% t()
+          # 
+          # tmpPval <- matrix(data = NA, nrow = dim(tmpComb)[1])
+          # for (i in 1:dim(tmpComb)[1]) {
+          #   try({
+          #     tmpPval[i] <- unlist(t.test(tmpComb1[, i], tmpComb2[, i], var.equal = T, alternative = "greater")$p.value)
+          #   })
+          # }
+          # # tmpPval[is.na(tmpPval)] <- 1
+          # effectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
+          # screenDiff <- cbind(1:nrow(combinedHits),
+          #                     data.frame(combinedHits$Gene, effectSize, tmpPval, p.adjust(tmpPval)) %>% arrange(desc(effectSize)))
+          # 
+          # colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
         }
       }
     }
@@ -420,7 +423,7 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           tmpComb2 <- tmpComb[screenClass == T] %>% as.matrix() %>% t()
           
           tTestObj <- ttestsModified(tmpComb1, tmpComb2, alternative = "greater")
-          EffectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
+          effectSize <- rowMeans(tmpComb[screenClass != T]) - rowMeans(tmpComb[screenClass == T])
           
           # tmpPval <- matrix(data = NA, nrow = dim(tmpComb)[1])
           # for (i in 1:dim(tmpComb)[1]) {
@@ -433,14 +436,13 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           
           
           screenDiff <- cbind(1:nrow(combinedHits),
-                              data.frame(combinedHits$Gene, EffectSize, data.frame(tTestObj)$pvalue, p.adjust(data.frame(tTestObj)$pvalue)) %>%
+                              data.frame(combinedHits$Gene, effectSize, data.frame(tTestObj)$pvalue, p.adjust(data.frame(tTestObj)$pvalue)) %>%
                                 arrange(desc(EffectSize)))
           
           colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
         }
       }
     }
-  }
   
   screenDiff
   

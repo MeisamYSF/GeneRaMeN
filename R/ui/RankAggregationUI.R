@@ -10,7 +10,7 @@ tabPanel("Rank aggregation",
          sidebarLayout(
            
            sidebarPanel(
-             
+             # actionButton("show", "Show modal dialog"),
              radioButtons("study", strong("Select a pre-loaded dataset:"),
                           width = '100%',
                           choices = c("None" = "None",

@@ -199,8 +199,8 @@ output$RRA <- DT::renderDT({
                                       "<a href='https://www.ncbi.nlm.nih.gov/gene/", ENTREZ, "' target='_blank'>NCBI</a> - ",
                                       "<a href='https://www.genecards.org/cgi-bin/carddisp.pl?gene=", Gene, "' target='_blank'>GeneCards</a> - "
                                       # "<a href='https://www.dgidb.org/genes/", Gene, "#_interactions'  target='_blank'>DGIdb</a>"
-                                      )
-                     ) %>%
+              )
+              ) %>%
               dplyr::select(-ENTREZ),
             
             rownames = F,
@@ -606,3 +606,22 @@ output$enrichUI <- renderUI({
     )
   )
 })
+
+# observeEvent(input$show, {
+#   
+#   showModal(modalDialog(div(
+#     textInput("dataset", "Choose data set",
+#               placeholder = 'Try "mtcars" or "abc"'
+#     ),
+#     span('(Try the name of a valid data object like "mtcars", ',
+#          'then a name of a non-existent object like "abc")'),
+#     style = "overflow-y: auto;"),
+# 
+#     footer = modalButton("Dismiss"),
+#     size = "xl",
+#     easyClose = FALSE,
+#     fade = TRUE
+#       
+#     )
+#   )
+#   })
