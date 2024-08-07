@@ -437,7 +437,7 @@ rankUniqReact <- eventReactive(input$submitHetero, {
           
           screenDiff <- cbind(1:nrow(combinedHits),
                               data.frame(combinedHits$Gene, effectSize, data.frame(tTestObj)$pvalue, p.adjust(data.frame(tTestObj)$pvalue)) %>%
-                                arrange(desc(EffectSize)))
+                                arrange(desc(effectSize)))
           
           colnames(screenDiff) <- c("Rank", "Gene", "EffectSize", "pValue", "FDR")
         }
