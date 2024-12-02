@@ -6,12 +6,6 @@
 ################################################################################
 ################################################################################
 
-### Uncomment for deploying to shinyapps.io | REMOVE BEFORE PUBLICATION
-# setrepositories for bioc first:
-# rsconnect::deployApp(appDir = "~/Documents/GitHub/GeneRaMeN", appName = "Dev-Meisam", account = "ysolab")
-# configureApp("Dev-Meisam-v6", appDir = "~/Documents/GitHub/Gene-RaMeN/", size="xxxlarge", account = "ysolab")
-# rsconnect::configureApp("Dev-Meisam", size="xxxlarge", account = "ysolab")
-
 server <- function(input, output, session) {
   
   ### Setting limits for the size of file user is allowed to submit -- currently 100 MB
@@ -27,3 +21,11 @@ server <- function(input, output, session) {
   ### Loading the server for rank uniqueness tab
   source('R/server/RankCorrelationServer.R', local = TRUE)$value
 }
+
+################################################################################
+################################################################################
+
+### Uncomment for deploying to shinyapps.io
+### setrepositories for bioc first:
+# rsconnect::deployApp(appDir = "~/GeneRaMeN", appName = "GeneRaMeN", account = "ysolab")
+# rsconnect::configureApp("GeneRaMeN", size="xxxlarge", account = "ysolab")
